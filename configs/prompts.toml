@@ -1,0 +1,9 @@
+[summarization]
+prompt = """
+based on the last conversation between user and AI assistant, 
+: last conversation($previous_summary)
+
+Update the following summary. Update only the relevant part of the summary. 
+Otherwise, keep the summary as it is.
+: $latest_conversation
+"""
