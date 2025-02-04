@@ -1,6 +1,7 @@
 import os
-import gradio as gr
 import argparse
+import gradio as gr
+from difflib import Differ
 from functools import partial
 from string import Template
 from utils import load_prompt, setup_gemini_client
@@ -25,7 +26,7 @@ def find_attached_file(filename, attached_files):
     return None
 
 def echo(message, history, state):
-    summary = ""
+
     attached_file = None
     if message['files']:
         path_local = message['files'][0]
@@ -57,11 +58,10 @@ def echo(message, history, state):
         model="gemini-1.5-flash",
         contents=state['messages']
     )
+    model_response = response.text
 
     # make summary
-    if state['summary'] == "":
-        state['summary'] = response.text
-    else:
+    if state['summary'] != "":
         response = client.models.generate_content(
             model="gemini-1.5-flash",
             contents=[
@@ -69,13 +69,56 @@ def echo(message, history, state):
                     prompt_tmpl['summarization']['prompt']
                 ).safe_substitute(
                     previous_summary=state['summary'], 
-                    latest_conversation=str({"user": message['text'], "assistant": response.text})
+                    latest_conversation=str({"user": message['text'], "assistant": model_response})
                 )
             ]
         )
-        state['summary'] = response.text
 
-    return response.text, state, state['summary']
+    if state['summary'] != "":
+        prev_summary = state['summary_history'][-1]
+    else:
+        prev_summary = ""
+
+    d = Differ()
+    state['summary'] = response.text
+    state['summary_history'].append(response.text)
+    state['summary_diff_history'].append(
+        [
+            (token[2:], token[0] if token[0] != " " else None)
+            for token in d.compare(prev_summary, state['summary'])
+        ]
+    )
+
+    return (
+        model_response, 
+        state, 
+        # state['summary'],
+        state['summary_diff_history'][-1],
+        state['summary_history'][-1],
+        gr.Slider(
+            maximum=len(state['summary_history']),
+            value=len(state['summary_history']),
+            visible=False if len(state['summary_history']) == 1 else True, interactive=True
+        ),
+    )
+
+def change_view_toggle(view_toggle):
+    if view_toggle == "Diff":
+        return (
+            gr.HighlightedText(visible=True),
+            gr.Markdown(visible=False)
+        )
+    else:
+        return (
+            gr.HighlightedText(visible=False),
+            gr.Markdown(visible=True)
+        )        
+
+def navigate_to_summary(summary_num, state):
+    return (
+        state['summary_diff_history'][summary_num-1],
+        state['summary_history'][summary_num-1]
+    )
 
 def main(args):
     style_css = open(args.css_path, "r").read()
@@ -90,24 +133,55 @@ def main(args):
         state = gr.State({
             "messages": [],
             "attached_files": [],
-            "summary": ""
+            "summary": "",
+            "summary_history": [],
+            "summary_diff_history": []
         })
 
-        gr.Markdown("# Adaptive Summarization")
-        gr.Markdown("AdaptSum stands for Adaptive Summarization. This project focuses on developing an LLM-powered system for dynamic summarization. Instead of generating entirely new summaries with each update, the system intelligently identifies and modifies only the necessary parts of the existing summary. This approach aims to create a more efficient and fluid summarization process within a continuous chat interaction with an LLM.")
+        with gr.Column():
+            gr.Markdown("# Adaptive Summarization")
+            gr.Markdown("AdaptSum stands for Adaptive Summarization. This project focuses on developing an LLM-powered system for dynamic summarization. Instead of generating entirely new summaries with each update, the system intelligently identifies and modifies only the necessary parts of the existing summary. This approach aims to create a more efficient and fluid summarization process within a continuous chat interaction with an LLM.")
 
-        with gr.Row(elem_id="chat-interface"):
-            with gr.Column(scale=3, elem_id="summary-window"):
-                summary = gr.Markdown(label="Summary so far")
+        with gr.Column():
+            with gr.Accordion("Adaptively Summarized Conversation", elem_id="adaptive-summary-accordion", open=False):
+                with gr.Row(elem_id="view-toggle-btn-container"):
+                    view_toggle_btn = gr.Radio(
+                        choices=["Diff", "Markdown"],
+                        value="Markdown",
+                        interactive=True,
+                        elem_id="view-toggle-btn"
+                    )
 
-            with gr.Column(scale=7):
-                gr.ChatInterface(
-                    multimodal=True,
-                    type="messages", 
-                    fn=echo, 
-                    additional_inputs=[state],
-                    additional_outputs=[state, summary],
+                summary_diff = gr.HighlightedText(
+                    label="Summary so far",
+                    # value="No summary yet. As you chat with the assistant, the summary will be updated automatically.",
+                    combine_adjacent=True,
+                    show_legend=True,
+                    color_map={"+": "red", "-": "green"},
+                    elem_classes=["summary-window"],
+                    visible=False
                 )
+
+                summary_md = gr.Markdown(
+                    label="Summary so far",
+                    value="No summary yet. As you chat with the assistant, the summary will be updated automatically.",
+                    elem_classes=["summary-window"],
+                    visible=True
+                )
+
+                summary_num = gr.Slider(label="summary history", minimum=1, maximum=1, step=1, show_reset_button=False, visible=False)
+
+            view_toggle_btn.change(change_view_toggle, inputs=[view_toggle_btn], outputs=[summary_diff, summary_md])
+            summary_num.release(navigate_to_summary, inputs=[summary_num, state], outputs=[summary_diff, summary_md])
+        
+        with gr.Column("chat-window", elem_id="chat-window"):
+            gr.ChatInterface(
+                multimodal=True,
+                type="messages", 
+                fn=echo, 
+                additional_inputs=[state],
+                additional_outputs=[state, summary_diff, summary_md, summary_num],
+            )
 
     return demo
 
