@@ -26,8 +26,8 @@ def find_attached_file(filename, attached_files):
     return None
 
 def echo(message, history, state):
-
     attached_file = None
+    
     if message['files']:
         path_local = message['files'][0]
         filename = os.path.basename(path_local)
@@ -44,8 +44,6 @@ def echo(message, history, state):
                 "expiration_time": path_gcp.expiration_time,
             })
             attached_file = path_gcp
-
-    # [{'role': 'user', 'metadata': None, 'content': 'asdf', 'options': None}, {'role': 'assistant', 'metadata': None, 'content': 'asdf', 'options': None}]
 
     user_message = [message['text']]
     if attached_file: user_message.append(attached_file)
