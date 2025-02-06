@@ -2,9 +2,9 @@ import os
 import argparse
 import gradio as gr
 from difflib import Differ
-from functools import partial
 from string import Template
 from utils import load_prompt, setup_gemini_client
+from configs.responses import SummaryResponses
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -69,7 +69,10 @@ def echo(message, history, state):
                     previous_summary=state['summary'], 
                     latest_conversation=str({"user": message['text'], "assistant": model_response})
                 )
-            ]
+            ],
+            config={'response_mime_type': 'application/json',
+                'response_schema': list[SummaryResponses],
+            },
         )
 
     if state['summary'] != "":
