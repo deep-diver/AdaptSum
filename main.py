@@ -82,13 +82,13 @@ def echo(message, history, state):
 
     d = Differ()
     state['summary'] = (
-        response.parsed.updated_summary 
-        if getattr(response.parsed, "updated_summary", None) is not None 
+        response.parsed.summary 
+        if getattr(response.parsed, "summary", None) is not None 
         else response.text
     )
     state['summary_history'].append(
-        response.parsed.updated_summary 
-        if getattr(response.parsed, "updated_summary", None) is not None 
+        response.parsed.summary 
+        if getattr(response.parsed, "summary", None) is not None 
         else response.text
     )
     state['summary_diff_history'].append(
