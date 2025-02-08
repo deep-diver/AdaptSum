@@ -54,7 +54,7 @@ def echo(message, history, state):
 
     response = client.models.generate_content(
         model="gemini-1.5-flash",
-        contents=state['messages']
+        contents=state['messages'],
     )
     model_response = response.text
 
@@ -71,7 +71,7 @@ def echo(message, history, state):
                 )
             ],
             config={'response_mime_type': 'application/json',
-                'response_schema': list[SummaryResponses],
+                'response_schema': SummaryResponses,
             },
         )
 
@@ -81,8 +81,16 @@ def echo(message, history, state):
         prev_summary = ""
 
     d = Differ()
-    state['summary'] = response.text
-    state['summary_history'].append(response.text)
+    state['summary'] = (
+        response.parsed.updated_summary 
+        if getattr(response.parsed, "updated_summary", None) is not None 
+        else response.text
+    )
+    state['summary_history'].append(
+        response.parsed.updated_summary 
+        if getattr(response.parsed, "updated_summary", None) is not None 
+        else response.text
+    )
     state['summary_diff_history'].append(
         [
             (token[2:], token[0] if token[0] != " " else None)
