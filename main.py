@@ -2,9 +2,9 @@ import os
 import argparse
 import gradio as gr
 from difflib import Differ
-from functools import partial
 from string import Template
 from utils import load_prompt, setup_gemini_client
+from configs.responses import SummaryResponses
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -54,7 +54,7 @@ def echo(message, history, state):
 
     response = client.models.generate_content(
         model="gemini-1.5-flash",
-        contents=state['messages']
+        contents=state['messages'],
     )
     model_response = response.text
 
@@ -69,7 +69,10 @@ def echo(message, history, state):
                     previous_summary=state['summary'], 
                     latest_conversation=str({"user": message['text'], "assistant": model_response})
                 )
-            ]
+            ],
+            config={'response_mime_type': 'application/json',
+                'response_schema': SummaryResponses,
+            },
         )
 
     if state['summary'] != "":
@@ -78,8 +81,16 @@ def echo(message, history, state):
         prev_summary = ""
 
     d = Differ()
-    state['summary'] = response.text
-    state['summary_history'].append(response.text)
+    state['summary'] = (
+        response.parsed.summary 
+        if getattr(response.parsed, "summary", None) is not None 
+        else response.text
+    )
+    state['summary_history'].append(
+        response.parsed.summary 
+        if getattr(response.parsed, "summary", None) is not None 
+        else response.text
+    )
     state['summary_diff_history'].append(
         [
             (token[2:], token[0] if token[0] != " " else None)
