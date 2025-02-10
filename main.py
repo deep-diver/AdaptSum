@@ -35,7 +35,7 @@ async def echo(message, history, state):
 
         attached_file = find_attached_file(filename, state["attached_files"])
         if attached_file is None: 
-            path_gcp = await client.files.AsyncFiles.upload(path=path_local)
+            path_gcp = await client.files.upload(path=path_local)
             state["attached_files"].append({
                 "name": filename,
                 "path_local": path_local,
@@ -54,7 +54,7 @@ async def echo(message, history, state):
     state['messages'] = chat_history
 
     response_chunks = ""
-    async for chunk in await client.aio.models.generate_content_stream(
+    async for chunk in await client.models.generate_content_stream(
         model="gemini-2.0-flash", contents=state['messages'],
     ):
         response_chunks += chunk.text
@@ -72,7 +72,7 @@ async def echo(message, history, state):
         )        
     
     # make summary
-    response = await client.aio.models.generate_content(
+    response = await client.models.generate_content(
         model="gemini-2.0-flash",
         contents=[
             Template(
