@@ -58,6 +58,7 @@ async def echo(message, history, state):
         model="gemini-2.0-flash", contents=state['messages'],
     ):
         response_chunks += chunk.text
+        # when model generates too fast, Gradio does not respond that in real-time.
         await asyncio.sleep(0.1)
         yield (
             response_chunks, 
