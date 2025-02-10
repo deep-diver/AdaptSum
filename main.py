@@ -5,6 +5,7 @@ from difflib import Differ
 from string import Template
 from utils import load_prompt, setup_gemini_client
 from configs.responses import SummaryResponses
+from google.genai import types
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -12,8 +13,8 @@ def parse_args():
     parser.add_argument("--vertexai", action="store_true", default=False)
     parser.add_argument("--vertexai-project", type=str, default="gcp-ml-172005")
     parser.add_argument("--vertexai-location", type=str, default="us-central1")
-    parser.add_argument("--model", type=str, default="gemini-1.5-flash")
-
+    parser.add_argument("--model", type=str, default="gemini-1.5-flash", choices=["gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-001"])
+    parser.add_argument("--seed", type=int, default=2025)
     parser.add_argument("--prompt-tmpl-path", type=str, default="configs/prompts.toml")
     parser.add_argument("--css-path", type=str, default="statics/styles.css")
     args = parser.parse_args()
@@ -25,7 +26,7 @@ def find_attached_file(filename, attached_files):
             return file
     return None
 
-def echo(message, history, state):
+def echo(message, history, state, persona):
     attached_file = None
     
     if message['files']:
@@ -52,16 +53,21 @@ def echo(message, history, state):
     chat_history = chat_history + user_message
     state['messages'] = chat_history
 
+    system_instruction = Template(prompt_tmpl['summarization']['system_prompt']).safe_substitute(persona=persona)
+    
     response = client.models.generate_content(
-        model="gemini-1.5-flash",
+        model=args.model,
         contents=state['messages'],
+        config=types.GenerateContentConfig(
+            system_instruction=system_instruction, seed=args.seed
+        ),
     )
     model_response = response.text
 
     # make summary
     if state['summary'] != "":
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
+            model=args.model,
             contents=[
                 Template(
                     prompt_tmpl['summarization']['prompt']
@@ -70,9 +76,13 @@ def echo(message, history, state):
                     latest_conversation=str({"user": message['text'], "assistant": model_response})
                 )
             ],
-            config={'response_mime_type': 'application/json',
-                'response_schema': SummaryResponses,
-            },
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction, 
+                seed=args.seed,
+                response_mime_type='application/json', 
+                response_schema=SummaryResponses
+            )
+
         )
 
     if state['summary'] != "":
@@ -184,11 +194,17 @@ def main(args):
             summary_num.release(navigate_to_summary, inputs=[summary_num, state], outputs=[summary_diff, summary_md])
         
         with gr.Column("chat-window", elem_id="chat-window"):
+            persona = gr.Dropdown(
+                ["expert", "novice", "regular practitioner", "high schooler"], 
+                label="Summary Persona", 
+                info="Control the tonality of the conversation.",
+                min_width="auto",
+            )
             gr.ChatInterface(
                 multimodal=True,
                 type="messages", 
                 fn=echo, 
-                additional_inputs=[state],
+                additional_inputs=[state, persona],
                 additional_outputs=[state, summary_diff, summary_md, summary_num],
             )
 

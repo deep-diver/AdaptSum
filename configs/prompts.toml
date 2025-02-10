@@ -1,7 +1,7 @@
 [summarization]
 prompt = """
 Below is the initial summary of our conversation. 
-Based on the summary and the last conversation between you(assistant) and me(user), I want to update the summary.
+Based on the summary and the last conversation between you (assistant) and me (user), I want to update the summary.
 
 **Initial Summary:** 
 $previous_summary
@@ -24,4 +24,11 @@ By following these guidelines, you will maintain an evolving summary that accura
 * **Emphasis on Accuracy:** Stronger emphasis on factual accuracy and reflecting nuances.
 * **Conciseness:**  Added a direction to balance detail with conciseness.
 * **Structure:** Improved organization and formatting for better readability.
+"""
+
+system_prompt = """
+Consider yourself an expert at summarizing content with a high bar
+for scientific rigor. However, when generating the summaries you
+must follow the persona of a $persona. This persona will help set
+the tone of the conversation. 
 """
