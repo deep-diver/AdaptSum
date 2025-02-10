@@ -1,5 +1,6 @@
 import os
 import argparse
+import asyncio
 import gradio as gr
 from difflib import Differ
 from string import Template
@@ -13,7 +14,7 @@ def parse_args():
     parser.add_argument("--vertexai", action="store_true", default=False)
     parser.add_argument("--vertexai-project", type=str, default="gcp-ml-172005")
     parser.add_argument("--vertexai-location", type=str, default="us-central1")
-    parser.add_argument("--model", type=str, default="gemini-1.5-flash", choices=["gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-001"])
+    parser.add_argument("--model", type=str, default="gemini-2.0-flash", choices=["gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-001"])
     parser.add_argument("--seed", type=int, default=2025)
     parser.add_argument("--prompt-tmpl-path", type=str, default="configs/prompts.toml")
     parser.add_argument("--css-path", type=str, default="statics/styles.css")
@@ -26,8 +27,9 @@ def find_attached_file(filename, attached_files):
             return file
     return None
 
-def echo(message, history, state, persona):
+async def echo(message, history, state, persona):
     attached_file = None
+    system_instruction = Template(prompt_tmpl['summarization']['system_prompt']).safe_substitute(persona=persona)
     
     if message['files']:
         path_local = message['files'][0]
@@ -35,7 +37,7 @@ def echo(message, history, state, persona):
 
         attached_file = find_attached_file(filename, state["attached_files"])
         if attached_file is None: 
-            path_gcp = client.files.upload(path=path_local)
+            path_gcp = await client.files.upload(path=path_local)
             state["attached_files"].append({
                 "name": filename,
                 "path_local": path_local,
@@ -53,44 +55,50 @@ def echo(message, history, state, persona):
     chat_history = chat_history + user_message
     state['messages'] = chat_history
 
-    system_instruction = Template(prompt_tmpl['summarization']['system_prompt']).safe_substitute(persona=persona)
+    response_chunks = ""
+    model_content_stream = await client.models.generate_content_stream(
+    model=args.model, 
+    contents=state['messages'], 
+    config=types.GenerateContentConfig(
+        system_instruction=system_instruction, seed=args.seed
+    ),
+)
+    async for chunk in model_content_stream:
+        response_chunks += chunk.text
+        # when model generates too fast, Gradio does not respond that in real-time.
+        await asyncio.sleep(0.1)
+        yield (
+            response_chunks, 
+            state, 
+            state['summary_diff_history'][-1] if len(state['summary_diff_history']) > 1 else "",
+            state['summary_history'][-1] if len(state['summary_history']) > 1 else "",
+            gr.Slider(
+                visible=False if len(state['summary_history']) <= 1 else True, 
+                interactive=False if len(state['summary_history']) <= 1 else True, 
+            ),
+        )        
     
-    response = client.models.generate_content(
-        model=args.model,
-        contents=state['messages'],
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction, seed=args.seed
-        ),
-    )
-    model_response = response.text
-
     # make summary
-    if state['summary'] != "":
-        response = client.models.generate_content(
-            model=args.model,
-            contents=[
-                Template(
-                    prompt_tmpl['summarization']['prompt']
-                ).safe_substitute(
-                    previous_summary=state['summary'], 
-                    latest_conversation=str({"user": message['text'], "assistant": model_response})
-                )
-            ],
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction, 
-                seed=args.seed,
-                response_mime_type='application/json', 
-                response_schema=SummaryResponses
+    response = await client.models.generate_content(
+        model=args.model,
+        contents=[
+            Template(
+                prompt_tmpl['summarization']['prompt']
+            ).safe_substitute(
+                previous_summary=state['summary'], 
+                latest_conversation=str({"user": message['text'], "assistant": response_chunks})
             )
-
+        ],
+        config=types.GenerateContentConfig(
+            system_instruction=system_instruction, 
+            seed=args.seed,
+            response_mime_type='application/json', 
+            response_schema=SummaryResponses
         )
+    )
 
-    if state['summary'] != "":
-        prev_summary = state['summary_history'][-1]
-    else:
-        prev_summary = ""
+    prev_summary = state['summary_history'][-1] if len(state['summary_history']) >= 1 else ""
 
-    d = Differ()
     state['summary'] = (
         response.parsed.summary 
         if getattr(response.parsed, "summary", None) is not None 
@@ -104,14 +112,13 @@ def echo(message, history, state, persona):
     state['summary_diff_history'].append(
         [
             (token[2:], token[0] if token[0] != " " else None)
-            for token in d.compare(prev_summary, state['summary'])
+            for token in Differ().compare(prev_summary, state['summary'])
         ]
     )
 
-    return (
-        model_response, 
+    yield (
+        response_chunks, 
         state, 
-        # state['summary'],
         state['summary_diff_history'][-1],
         state['summary_history'][-1],
         gr.Slider(
@@ -142,7 +149,7 @@ def navigate_to_summary(summary_num, state):
 def main(args):
     style_css = open(args.css_path, "r").read()
 
-    global client, prompt_tmpl
+    global client, prompt_tmpl, system_instruction
     client = setup_gemini_client(args)
     prompt_tmpl = load_prompt(args)
     
@@ -176,7 +183,7 @@ def main(args):
                     # value="No summary yet. As you chat with the assistant, the summary will be updated automatically.",
                     combine_adjacent=True,
                     show_legend=True,
-                    color_map={"+": "red", "-": "green"},
+                    color_map={"-": "red", "+": "green"},
                     elem_classes=["summary-window"],
                     visible=False
                 )
