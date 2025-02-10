@@ -9,14 +9,18 @@ def load_prompt(args):
 
 def setup_gemini_client(args):
     if args.vertexai:
-        client = genai.Client(
-            vertexai=args.vertexai, 
-            project=args.vertexai_project, 
-            location=args.vertexai_location
+        client = genai.client.AsyncClient(
+            genai.client.ApiClient(
+                vertexai=args.vertexai, 
+                project=args.vertexai_project, 
+                location=args.vertexai_location
+            )
         )
     else:
-        client = genai.Client(
-            api_key=args.ai_studio_api_key,
+        client = genai.client.AsyncClient(
+            genai.client.ApiClient(
+                api_key=args.ai_studio_api_key
+            )
         )
 
     return client
