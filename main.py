@@ -200,13 +200,15 @@ def main(args):
             view_toggle_btn.change(change_view_toggle, inputs=[view_toggle_btn], outputs=[summary_diff, summary_md])
             summary_num.release(navigate_to_summary, inputs=[summary_num, state], outputs=[summary_diff, summary_md])
         
-        with gr.Column("chat-window", elem_id="chat-window"):
+        with gr.Column("persona-dropdown-container", elem_id="persona-dropdown-container"):
             persona = gr.Dropdown(
                 ["expert", "novice", "regular practitioner", "high schooler"], 
                 label="Summary Persona", 
                 info="Control the tonality of the conversation.",
                 min_width="auto",
-            )
+            )        
+
+        with gr.Column("chat-window", elem_id="chat-window"):
             gr.ChatInterface(
                 multimodal=True,
                 type="messages", 

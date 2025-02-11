@@ -1,5 +1,5 @@
 .summary-window {
-    height: 550px !important;
+    height: 600px !important;
     /* border: dashed 1px #e0e0e0 !important; */
     border-radius: 10px !important;
     padding: 4px;
@@ -28,9 +28,9 @@
     box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.2);
 }
 
-#chat-window {
+/* #chat-window {
     margin-top: 40px !important;
-}
+} */
 
 #chat-window > div > div:nth-child(1) {
     height: 600px !important;
@@ -44,4 +44,8 @@
     padding: 0px !important;
     margin: 0px !important;
     line-height: 1.7 !important;
+}
+
+#persona-dropdown-container {
+    margin-top: 40px !important;
 }
