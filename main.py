@@ -6,6 +6,7 @@ from difflib import Differ
 from string import Template
 from utils import load_prompt, setup_gemini_client
 from configs.responses import SummaryResponses
+from google.genai import types
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -13,8 +14,8 @@ def parse_args():
     parser.add_argument("--vertexai", action="store_true", default=False)
     parser.add_argument("--vertexai-project", type=str, default="gcp-ml-172005")
     parser.add_argument("--vertexai-location", type=str, default="us-central1")
-    parser.add_argument("--model", type=str, default="gemini-1.5-flash")
-
+    parser.add_argument("--model", type=str, default="gemini-2.0-flash", choices=["gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-001"])
+    parser.add_argument("--seed", type=int, default=2025)
     parser.add_argument("--prompt-tmpl-path", type=str, default="configs/prompts.toml")
     parser.add_argument("--css-path", type=str, default="statics/styles.css")
     args = parser.parse_args()
@@ -26,8 +27,9 @@ def find_attached_file(filename, attached_files):
             return file
     return None
 
-async def echo(message, history, state):
+async def echo(message, history, state, persona):
     attached_file = None
+    system_instruction = Template(prompt_tmpl['summarization']['system_prompt']).safe_substitute(persona=persona)
     
     if message['files']:
         path_local = message['files'][0]
@@ -54,9 +56,14 @@ async def echo(message, history, state):
     state['messages'] = chat_history
 
     response_chunks = ""
-    async for chunk in await client.models.generate_content_stream(
-        model="gemini-2.0-flash", contents=state['messages'],
-    ):
+    model_content_stream = await client.models.generate_content_stream(
+    model=args.model, 
+    contents=state['messages'], 
+    config=types.GenerateContentConfig(
+        system_instruction=system_instruction, seed=args.seed
+    ),
+)
+    async for chunk in model_content_stream:
         response_chunks += chunk.text
         # when model generates too fast, Gradio does not respond that in real-time.
         await asyncio.sleep(0.1)
@@ -73,7 +80,7 @@ async def echo(message, history, state):
     
     # make summary
     response = await client.models.generate_content(
-        model="gemini-2.0-flash",
+        model=args.model,
         contents=[
             Template(
                 prompt_tmpl['summarization']['prompt']
@@ -82,9 +89,12 @@ async def echo(message, history, state):
                 latest_conversation=str({"user": message['text'], "assistant": response_chunks})
             )
         ],
-        config={'response_mime_type': 'application/json',
-            'response_schema': SummaryResponses,
-        },
+        config=types.GenerateContentConfig(
+            system_instruction=system_instruction, 
+            seed=args.seed,
+            response_mime_type='application/json', 
+            response_schema=SummaryResponses
+        )
     )
 
     prev_summary = state['summary_history'][-1] if len(state['summary_history']) >= 1 else ""
@@ -139,7 +149,7 @@ def navigate_to_summary(summary_num, state):
 def main(args):
     style_css = open(args.css_path, "r").read()
 
-    global client, prompt_tmpl
+    global client, prompt_tmpl, system_instruction
     client = setup_gemini_client(args)
     prompt_tmpl = load_prompt(args)
     
@@ -191,11 +201,17 @@ def main(args):
             summary_num.release(navigate_to_summary, inputs=[summary_num, state], outputs=[summary_diff, summary_md])
         
         with gr.Column("chat-window", elem_id="chat-window"):
+            persona = gr.Dropdown(
+                ["expert", "novice", "regular practitioner", "high schooler"], 
+                label="Summary Persona", 
+                info="Control the tonality of the conversation.",
+                min_width="auto",
+            )
             gr.ChatInterface(
                 multimodal=True,
                 type="messages", 
                 fn=echo, 
-                additional_inputs=[state],
+                additional_inputs=[state, persona],
                 additional_outputs=[state, summary_diff, summary_md, summary_num],
             )
 
