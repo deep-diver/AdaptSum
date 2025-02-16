@@ -48,7 +48,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            huggingface_hub upload adaptsum/demo . repo-type=space
+            huggingface-cli upload adaptsum/demo . repo-type=space
             echo "Changes have been pushed."
           fi
         env:
