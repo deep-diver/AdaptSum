@@ -26,6 +26,7 @@ jobs:
 
       - name: Clone Hugging Face Spaces Repository
         run: |
+          huggingface-cli login --token $HF_TOKEN --add-to-git-credential
           git clone https://huggingface.co/spaces/adaptsum/demo hf_space
           cd hf_space
           git checkout main
