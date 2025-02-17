@@ -30,7 +30,7 @@ jobs:
           cd hf_space
           git checkout main
         env:
-          HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
+          HF_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
 
       - name: Copy Files to Hugging Face Repo
         run: |
