@@ -35,7 +35,7 @@ jobs:
 
       - name: Copy Files to Hugging Face Repo
         run: |
-          rsync -av --exclude='.git' --exclude='README.md' ./ hf_space/
+          rsync -av --exclude='.git' --exclude='README.md' --exclude='hf_space' ./ hf_space/
 
       - name: Merge README.md Files
         run: |
