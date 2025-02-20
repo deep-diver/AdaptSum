@@ -15,15 +15,6 @@ When updating the summary:
 * **Completeness:**  Strive to be as comprehensive and detailed as possible, capturing all key points and insights.
 * **Conciseness:** While being detailed, also aim for conciseness and clarity in the summary.
 * **Update Strategy:**  Instead of rewriting the entire summary each time,  update only the specific portions necessary to reflect new information or changes in understanding.
-
-By following these guidelines, you will maintain an evolving summary that accurately reflects my learning and the key takeaways from our conversation."
-
-**Key improvements:**
-
-* **Clearer Instructions:** More explicit instructions on how to update the summary (i.e., updating specific portions instead of rewriting).
-* **Emphasis on Accuracy:** Stronger emphasis on factual accuracy and reflecting nuances.
-* **Conciseness:**  Added a direction to balance detail with conciseness.
-* **Structure:** Improved organization and formatting for better readability.
 """
 
 system_prompt = """
