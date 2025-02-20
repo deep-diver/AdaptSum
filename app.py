@@ -27,7 +27,7 @@ def find_attached_file(filename, attached_files):
             return file
     return None
 
-async def echo(message, history, state, persona):
+async def echo(message, history, state, persona, use_generated_summaries):
     attached_file = None
     system_instruction = Template(prompt_tmpl['summarization']['system_prompt']).safe_substitute(persona=persona)
     
@@ -79,13 +79,14 @@ async def echo(message, history, state, persona):
         )        
     
     # make summary
+    use_generated_summaries = True if use_generated_summaries == "Yes" else False
     response = await client.models.generate_content(
         model=args.model,
         contents=[
             Template(
                 prompt_tmpl['summarization']['prompt']
             ).safe_substitute(
-                previous_summary=state['summary'], 
+                previous_summary=state['summary'] if use_generated_summaries else "No previous summary", 
                 latest_conversation=str({"user": message['text'], "assistant": response_chunks})
             )
         ],
@@ -206,14 +207,19 @@ def main(args):
                 label="Summary Persona", 
                 info="Control the tonality of the conversation.",
                 min_width="auto",
-            )        
+            )      
+            use_generated_summaries = gr.Dropdown(
+                ["Yes", "No"], 
+                label="Feed back the generated summaries", 
+                min_width="auto",
+            )      
 
         with gr.Column("chat-window", elem_id="chat-window"):
             gr.ChatInterface(
                 multimodal=True,
                 type="messages", 
                 fn=echo, 
-                additional_inputs=[state, persona],
+                additional_inputs=[state, persona, use_generated_summaries],
                 additional_outputs=[state, summary_diff, summary_md, summary_num],
             )
 
