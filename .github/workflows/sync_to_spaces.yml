@@ -27,7 +27,7 @@ jobs:
       - name: Clone Hugging Face Spaces Repository
         run: |
           huggingface-cli login --token $HF_TOKEN --add-to-git-credential
-          git clone https://huggingface.co/spaces/adaptsum/adaptsum hf_space
+          git clone https://huggingface.co/spaces/chansung/test-gchat hf_space
           cd hf_space
           git checkout main
         env:
@@ -50,7 +50,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            huggingface-cli upload adaptsum/adaptsum . . --repo-type=space
+            huggingface-cli upload chansung/test-gchat . . --repo-type=space
             echo "Changes have been pushed."
           fi
         env:
