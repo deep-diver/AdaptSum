@@ -68,12 +68,14 @@ async def echo(message, history, state, persona):
         yield (
             response_chunks, 
             state, 
+            message['text'],
             state['summary_diff_history'][-1] if len(state['summary_diff_history']) > 1 else "",
             state['summary_history'][-1] if len(state['summary_history']) > 1 else "",
             gr.Slider(
                 visible=False if len(state['summary_history']) <= 1 else True, 
                 interactive=False if len(state['summary_history']) <= 1 else True, 
             ),
+            gr.DownloadButton(visible=False)
         )        
     
     # make summary
@@ -113,10 +115,16 @@ async def echo(message, history, state, persona):
             for token in Differ().compare(prev_summary, state['summary'])
         ]
     )
+    state['user_messages'].append(message['text'])
+
+    state['filepaths'].append(f"{os.urandom(10).hex()}_summary_at_{len(state['summary_history'])}.md")
+    with open(state['filepaths'][-1], 'w', encoding='utf-8') as f:
+        f.write(state['summary'])
 
     yield (
         response_chunks, 
         state, 
+        message['text'],
         state['summary_diff_history'][-1],
         state['summary_history'][-1],
         gr.Slider(
@@ -124,6 +132,7 @@ async def echo(message, history, state, persona):
             value=len(state['summary_history']),
             visible=False if len(state['summary_history']) == 1 else True, interactive=True
         ),
+        gr.DownloadButton(f"Download summary at index {len(state['summary_history'])}", value=state['filepaths'][-1], visible=True)
     )
 
 def change_view_toggle(view_toggle):
@@ -140,8 +149,10 @@ def change_view_toggle(view_toggle):
 
 def navigate_to_summary(summary_num, state):
     return (
+        state['user_messages'][summary_num-1],
         state['summary_diff_history'][summary_num-1],
-        state['summary_history'][summary_num-1]
+        state['summary_history'][summary_num-1],
+        gr.DownloadButton(f"Download summary at index {summary_num}", value=state['filepaths'][summary_num-1])
     )
 
 def main(args):
@@ -156,10 +167,12 @@ def main(args):
         # State per session
         state = gr.State({
             "messages": [],
+            "user_messages": [],
             "attached_files": [],
             "summary": "",
             "summary_history": [],
-            "summary_diff_history": []
+            "summary_diff_history": [],
+            "filepaths": []
         })
 
         with gr.Column():
@@ -176,27 +189,36 @@ def main(args):
                         elem_id="view-toggle-btn"
                     )
 
+                last_user_msg = gr.Textbox(
+                    label="Last User Message",
+                    value="",
+                    interactive=False,
+                    elem_classes=["last-user-msg"]
+                )
+
                 summary_diff = gr.HighlightedText(
                     label="Summary so far",
                     # value="No summary yet. As you chat with the assistant, the summary will be updated automatically.",
                     combine_adjacent=True,
                     show_legend=True,
                     color_map={"-": "red", "+": "green"},
-                    elem_classes=["summary-window"],
+                    elem_classes=["summary-window-highlighted"],
                     visible=False
                 )
 
                 summary_md = gr.Markdown(
                     label="Summary so far",
                     value="No summary yet. As you chat with the assistant, the summary will be updated automatically.",
-                    elem_classes=["summary-window"],
+                    elem_classes=["summary-window-markdown"],
                     visible=True
                 )
 
                 summary_num = gr.Slider(label="summary history", minimum=1, maximum=1, step=1, show_reset_button=False, visible=False)
 
+                download_summary_md = gr.DownloadButton("Download summary", visible=False)
+
             view_toggle_btn.change(change_view_toggle, inputs=[view_toggle_btn], outputs=[summary_diff, summary_md])
-            summary_num.release(navigate_to_summary, inputs=[summary_num, state], outputs=[summary_diff, summary_md])
+            summary_num.release(navigate_to_summary, inputs=[summary_num, state], outputs=[last_user_msg, summary_diff, summary_md, download_summary_md])
         
         with gr.Column("persona-dropdown-container", elem_id="persona-dropdown-container"):
             persona = gr.Dropdown(
@@ -212,7 +234,7 @@ def main(args):
                 type="messages", 
                 fn=echo, 
                 additional_inputs=[state, persona],
-                additional_outputs=[state, summary_diff, summary_md, summary_num],
+                additional_outputs=[state, last_user_msg, summary_diff, summary_md, summary_num, download_summary_md],
             )
 
     return demo
