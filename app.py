@@ -59,9 +59,7 @@ async def echo(message, history, state, persona):
     model_content_stream = await client.models.generate_content_stream(
     model=args.model, 
     contents=state['messages'], 
-    config=types.GenerateContentConfig(
-        system_instruction=system_instruction, seed=args.seed
-    ),
+    config=types.GenerateContentConfig(seed=args.seed),
 )
     async for chunk in model_content_stream:
         response_chunks += chunk.text
