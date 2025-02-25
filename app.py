@@ -31,7 +31,6 @@ async def echo(message, history, state, persona, use_generated_summaries):
     attached_file = None
     system_instruction = Template(prompt_tmpl['summarization']['system_prompt']).safe_substitute(persona=persona)
     use_generated_summaries = True if use_generated_summaries == "Yes" else False
-    print(f"{use_generated_summaries=}")
 
     if message['files']:
         path_local = message['files'][0]
