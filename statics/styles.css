@@ -1,11 +1,27 @@
-.summary-window {
-    height: 600px !important;
+.summary-window-markdown {
+    height: 550px !important;
+    /* border: dashed 1px #e0e0e0 !important; */
+    border-radius: 10px !important;
+    padding: 4px;
+    border: 2px solid var(--border-color-primary) !important;
+}
+
+.summary-window-markdown > div > div {
+    border: none !important;
+}
+
+.summary-window-highlighted {
+    height: 550px !important;
     /* border: dashed 1px #e0e0e0 !important; */
     border-radius: 10px !important;
     padding: 4px;
 }
 
-.summary-window > label {
+.summary-window-markdown > label {
+    display: none !important;
+}
+
+.summary-window-highlighted > label {
     display: none !important;
 }
 
@@ -48,4 +64,12 @@
 
 #persona-dropdown-container {
     margin-top: 40px !important;
+}
+
+.last-user-msg {
+    padding: 0px !important;
+}
+
+.last-user-msg > label > span {
+    display: none !important;
 }
