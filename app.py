@@ -27,10 +27,11 @@ def find_attached_file(filename, attached_files):
             return file
     return None
 
-async def echo(message, history, state, persona):
+async def echo(message, history, state, persona, use_generated_summaries):
     attached_file = None
     system_instruction = Template(prompt_tmpl['summarization']['system_prompt']).safe_substitute(persona=persona)
-    
+    use_generated_summaries = True if use_generated_summaries == "Yes" else False
+
     if message['files']:
         path_local = message['files'][0]
         filename = os.path.basename(path_local)
@@ -56,11 +57,21 @@ async def echo(message, history, state, persona):
     state['messages'] = chat_history
 
     response_chunks = ""
+    model_contents = ""
+    if use_generated_summaries:
+        if "summary_history" in state and len(state["summary_history"]):
+            model_contents += state["summary_history"][-1]
+        else:
+            model_contents = state['messages']
+    else:
+        model_contents = state['messages']
     model_content_stream = await client.models.generate_content_stream(
-    model=args.model, 
-    contents=state['messages'], 
-    config=types.GenerateContentConfig(seed=args.seed),
-)
+        model=args.model, 
+        contents=model_contents, 
+        config=types.GenerateContentConfig(
+            system_instruction=system_instruction, seed=args.seed
+        ),
+    )
     async for chunk in model_content_stream:
         response_chunks += chunk.text
         # when model generates too fast, Gradio does not respond that in real-time.
@@ -85,7 +96,7 @@ async def echo(message, history, state, persona):
             Template(
                 prompt_tmpl['summarization']['prompt']
             ).safe_substitute(
-                previous_summary=state['summary'], 
+                previous_summary=state['summary'],
                 latest_conversation=str({"user": message['text'], "assistant": response_chunks})
             )
         ],
@@ -226,14 +237,20 @@ def main(args):
                 label="Summary Persona", 
                 info="Control the tonality of the conversation.",
                 min_width="auto",
-            )        
+            )      
+            use_generated_summaries = gr.Dropdown(
+                ["No", "Yes"], 
+                label="Feed back the generated summaries", 
+                info="Set this to 'Yes' to ONLY feed the generated summaries back to the model instead of the whole conversation.",
+                min_width="auto",
+            )      
 
         with gr.Column("chat-window", elem_id="chat-window"):
             gr.ChatInterface(
                 multimodal=True,
                 type="messages", 
                 fn=echo, 
-                additional_inputs=[state, persona],
+                additional_inputs=[state, persona, use_generated_summaries],
                 additional_outputs=[state, last_user_msg, summary_diff, summary_md, summary_num, download_summary_md],
             )
 
