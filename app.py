@@ -30,8 +30,11 @@ def find_attached_file(filename, attached_files):
 async def echo(message, history, state, persona, use_generated_summaries):
     attached_file = None
     system_instruction = Template(prompt_tmpl['summarization']['system_prompt']).safe_substitute(persona=persona)
+    system_instruction_cutoff = prompt_tmpl['summarization']['system_prompt_cutoff']
     use_generated_summaries = True if use_generated_summaries == "Yes" else False
 
+    print(system_instruction_cutoff)
+    
     if message['files']:
         path_local = message['files'][0]
         filename = os.path.basename(path_local)
@@ -39,39 +42,60 @@ async def echo(message, history, state, persona, use_generated_summaries):
         attached_file = find_attached_file(filename, state["attached_files"])
         if attached_file is None: 
             path_gcp = await client.files.upload(path=path_local)
+            path_wrap = types.Part.from_uri(
+                file_uri=path_gcp.uri, mime_type=path_gcp.mime_type
+            )
             state["attached_files"].append({
                 "name": filename,
                 "path_local": path_local,
                 "gcp_entity": path_gcp,
-                "path_gcp": path_gcp.name,
-                "mime_type=": path_gcp.mime_type,
+                "path_gcp": path_wrap,
+                "mime_type": path_gcp.mime_type,
                 "expiration_time": path_gcp.expiration_time,
             })
-            attached_file = path_gcp
-
-    user_message = [message['text']]
-    if attached_file: user_message.append(attached_file)
-
-    chat_history = state['messages']
-    chat_history = chat_history + user_message
-    state['messages'] = chat_history
-
+            attached_file = path_wrap
+            
     response_chunks = ""
     model_contents = ""
     if use_generated_summaries:
         if "summary_history" in state and len(state["summary_history"]):
-            model_contents += state["summary_history"][-1]
+            user_message_parts = [
+                types.Part.from_text(text=f"""Summary\n:{state["summary_history"][-1]}\n-------"""),
+                types.Part.from_text(text=message['text'])
+            ]
+            if attached_file: user_message_parts.append(attached_file)
+            model_contents = [types.Content(role='user', parts=user_message_parts)]
+
+            model_content_stream = await client.models.generate_content_stream(
+                model=args.model, 
+                contents=model_contents, 
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction_cutoff, seed=args.seed
+                ),
+            )                
         else:
-            model_contents = state['messages']
+            user_message_parts = [types.Part.from_text(text=message['text'])]
+            if attached_file: user_message_parts.append(attached_file)
+            user_message = [types.Content(role='user', parts=user_message_parts)]
+            state['messages'] = state['messages'] + user_message
+
+            model_content_stream = await client.models.generate_content_stream(
+                model=args.model, 
+                contents=state['messages'], 
+                config=types.GenerateContentConfig(seed=args.seed),
+            )    
     else:
-        model_contents = state['messages']
-    model_content_stream = await client.models.generate_content_stream(
-        model=args.model, 
-        contents=model_contents, 
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction, seed=args.seed
-        ),
-    )
+        user_message_parts = [types.Part.from_text(text=message['text'])]
+        if attached_file: user_message_parts.append(attached_file)
+        user_message = [types.Content(role='user', parts=user_message_parts)]
+        state['messages'] = state['messages'] + user_message
+
+        model_content_stream = await client.models.generate_content_stream(
+            model=args.model, 
+            contents=state['messages'], 
+            config=types.GenerateContentConfig(seed=args.seed),
+        )    
+
     async for chunk in model_content_stream:
         response_chunks += chunk.text
         # when model generates too fast, Gradio does not respond that in real-time.
@@ -88,6 +112,10 @@ async def echo(message, history, state, persona, use_generated_summaries):
             ),
             gr.DownloadButton(visible=False)
         )        
+
+    state['messages'] = state['messages'] + [
+        types.Content(role='model', parts=[types.Part.from_text(text=response_chunks)])
+    ]
     
     # make summary
     response = await client.models.generate_content(
