@@ -22,14 +22,19 @@
       display: flex;
       width: 100vw;
       height: 100vh;
+      transition: all 0.3s ease;
     }
-    /* Left Navigation Bar for Chat History */
+    /* Left Navigation Bar */
     .nav-bar {
-      width: 250px;
+      width: 300px;
       background: #ffffff;
       padding: 20px;
       box-shadow: 2px 0 12px rgba(0,0,0,0.1);
       overflow-y: auto;
+      transition: width 0.3s ease, padding 0.3s ease;
+    }
+    .nav-bar.hidden {
+      display: none;
     }
     .nav-bar h3 {
       margin-top: 0;
@@ -47,8 +52,8 @@
       border-radius: 8px;
       cursor: pointer;
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
       transition: background 0.3s;
       font-size: 1.1em;
     }
@@ -57,12 +62,29 @@
       background: #667eea;
       color: #fff;
     }
+    .session-actions {
+      display: inline-flex;
+      gap: 5px;
+      margin-left: 10px;
+    }
+    .session-summary-btn,
+    .session-settings-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 1.2em;
+    }
+    .session-summary-btn:hover,
+    .session-settings-btn:hover {
+      color: #667eea;
+    }
     .nav-bar li button.remove-session {
       background: transparent;
       border: none;
       color: inherit;
       font-size: 1em;
       cursor: pointer;
+      margin-left: auto;
     }
     .new-session-btn {
       width: 100%;
@@ -86,33 +108,22 @@
       flex-direction: column;
       overflow: hidden;
       position: relative;
+      transition: width 0.3s ease;
     }
-    /* Top Buttons for Overlays */
-    .top-buttons {
+    /* Hamburger Button inside Chat Wrapper */
+    #hamburgerBtn {
       position: absolute;
       top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 10px;
-      z-index: 15;
-    }
-    .top-button {
-      height: 40px;
+      left: 20px;
       background: #667eea;
       color: #fff;
       border: none;
-      border-radius: 20px;
+      padding: 10px;
+      font-size: 1.4em;
+      border-radius: 4px;
       cursor: pointer;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.1em;
-      text-transform: uppercase;
-      padding: 0 20px;
+      z-index: 20;
     }
-    .top-button:hover { background: #556cd6; }
     /* Turn Label */
     #turnLabel {
       position: absolute;
@@ -288,7 +299,7 @@
     }
     .input-container button:hover { background: #556cd6; }
     #fileInput { display: none; }
-    /* Summary Overlay Panel (Per‑Session) */
+    /* Summary Overlay Panel (Per‑Session, rendered markdown) */
     #summaryOverlay {
       position: fixed;
       top: 0;
@@ -338,7 +349,6 @@
       overflow-y: auto;
       flex: 1;
     }
-    /* Summary content now displays rendered markdown */
     /* Settings Overlay Panel (Per‑Session) */
     #settingsOverlay {
       position: fixed;
@@ -406,7 +416,6 @@
       .input-container { padding: 15px; }
       .input-row { flex-direction: column; gap: 10px; }
       .input-container button { width: 100%; }
-      .top-button { font-size: 1em; height: 40px; padding: 0 20px; }
       #summaryOverlay, #settingsOverlay { width: 80%; }
     }
   </style>
@@ -414,17 +423,15 @@
 <body>
   <div class="app-container">
     <!-- Left Nav Bar for Chat History & Session Management -->
-    <div class="nav-bar">
+    <div class="nav-bar" id="navBar">
       <h3>Chat History</h3>
       <ul id="sessionList"></ul>
       <button class="new-session-btn" id="newSessionBtn">New Chat</button>
     </div>
     <!-- Main Chat Wrapper -->
     <div class="chat-wrapper">
-      <div class="top-buttons">
-        <button id="summaryBtn" class="top-button">Summary</button>
-        <button id="settingsBtn" class="top-button">Settings</button>
-      </div>
+      <!-- Hamburger Button (placed inside chat area) -->
+      <button id="hamburgerBtn">&#9776;</button>
       <!-- Turn Label -->
       <div id="turnLabel">Turn: 0/0</div>
       <div class="carousel-wrapper">
@@ -519,16 +526,59 @@
       renderCurrentSession();
     }
 
-    // Render the left nav bar session list
+    // Render the left nav bar session list with icons
     function renderSessionList() {
       const sessionList = document.getElementById('sessionList');
       sessionList.innerHTML = "";
       sessions.forEach((session, index) => {
         const li = document.createElement('li');
-        li.textContent = session.name;
-        li.dataset.index = index;
-        if (index === currentSessionIndex) li.classList.add('active');
-        // Remove button for each session
+
+        // Session name
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = session.name;
+        li.appendChild(nameSpan);
+
+        // Action icons container
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = "session-actions";
+
+        const summaryBtn = document.createElement('button');
+        summaryBtn.className = "session-summary-btn";
+        summaryBtn.innerHTML = "📄";
+        summaryBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          currentSessionIndex = index;
+          renderSessionList();
+          renderCurrentSession();
+          // Open summary overlay for this session
+          document.getElementById('summaryContent').innerHTML = marked.parse(sessions[currentSessionIndex].summary);
+          summaryOverlay.classList.add('active');
+          settingsOverlay.classList.remove('active');
+        });
+        actionsDiv.appendChild(summaryBtn);
+
+        const settingsBtn = document.createElement('button');
+        settingsBtn.className = "session-settings-btn";
+        settingsBtn.innerHTML = "⚙";
+        settingsBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          currentSessionIndex = index;
+          renderSessionList();
+          renderCurrentSession();
+          // Open settings overlay for this session
+          const settings = sessions[currentSessionIndex].settings;
+          temperatureInput.value = settings.temperature;
+          temperatureValue.textContent = settings.temperature;
+          maxTokensInput.value = settings.maxTokens;
+          personaSelect.value = settings.persona;
+          settingsOverlay.classList.add('active');
+          summaryOverlay.classList.remove('active');
+        });
+        actionsDiv.appendChild(settingsBtn);
+
+        li.appendChild(actionsDiv);
+
+        // Remove session button
         const removeBtn = document.createElement('button');
         removeBtn.textContent = "×";
         removeBtn.className = "remove-session";
@@ -537,12 +587,14 @@
           removeSession(index);
         });
         li.appendChild(removeBtn);
+
         li.addEventListener('click', () => {
           currentSessionIndex = index;
           currentCardIndex = 0;
           renderSessionList();
           renderCurrentSession();
         });
+        if (index === currentSessionIndex) li.classList.add('active');
         sessionList.appendChild(li);
       });
     }
@@ -722,19 +774,10 @@
 
     // ----------------- Summary Overlay (Per‑Session) -----------------
     const summaryOverlay = document.getElementById('summaryOverlay');
-    const summaryBtn = document.getElementById('summaryBtn');
     const closeSummaryBtn = document.getElementById('closeSummaryBtn');
     const summaryContent = document.getElementById('summaryContent');
     const downloadSummaryBtn = document.getElementById('downloadSummary');
 
-    summaryBtn.addEventListener('click', (e) => {
-      // Close settings if open
-      settingsOverlay.classList.remove('active');
-      // Load current session's summary and render as markdown
-      summaryContent.innerHTML = marked.parse(sessions[currentSessionIndex].summary);
-      summaryOverlay.classList.toggle('active');
-      e.stopPropagation();
-    });
     closeSummaryBtn.addEventListener('click', () => { summaryOverlay.classList.remove('active'); });
     downloadSummaryBtn.addEventListener('click', () => {
       const blob = new Blob([sessions[currentSessionIndex].summary], { type: "text/markdown" });
@@ -748,7 +791,6 @@
 
     // ----------------- Settings Overlay (Per‑Session) -----------------
     const settingsOverlay = document.getElementById('settingsOverlay');
-    const settingsBtn = document.getElementById('settingsBtn');
     const closeSettingsBtn = document.getElementById('closeSettingsBtn');
     const temperatureInput = document.getElementById('temperature');
     const temperatureValue = document.getElementById('temperatureValue');
@@ -756,18 +798,6 @@
     const personaSelect = document.getElementById('persona');
     const saveSettingsBtn = document.getElementById('saveSettings');
 
-    settingsBtn.addEventListener('click', (e) => {
-      // Close summary if open
-      summaryOverlay.classList.remove('active');
-      // Load current session's settings
-      const settings = sessions[currentSessionIndex].settings;
-      temperatureInput.value = settings.temperature;
-      temperatureValue.textContent = settings.temperature;
-      maxTokensInput.value = settings.maxTokens;
-      personaSelect.value = settings.persona;
-      settingsOverlay.classList.toggle('active');
-      e.stopPropagation();
-    });
     closeSettingsBtn.addEventListener('click', () => { settingsOverlay.classList.remove('active'); });
     temperatureInput.addEventListener('input', () => {
        temperatureValue.textContent = temperatureInput.value;
@@ -785,13 +815,11 @@
     // ----------------- Auto-Dismiss Overlays on Outside Click -----------------
     document.addEventListener('click', (e) => {
       if (summaryOverlay.classList.contains('active') &&
-          !summaryOverlay.contains(e.target) &&
-          e.target !== summaryBtn) {
+          !summaryOverlay.contains(e.target)) {
         summaryOverlay.classList.remove('active');
       }
       if (settingsOverlay.classList.contains('active') &&
-          !settingsOverlay.contains(e.target) &&
-          e.target !== settingsBtn) {
+          !settingsOverlay.contains(e.target)) {
         settingsOverlay.classList.remove('active');
       }
     });
@@ -809,6 +837,18 @@
             updateCarousel();
           }
         }
+      }
+    });
+
+    // ----------------- Hamburger Button (Toggle Nav Bar) -----------------
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const navBar = document.getElementById('navBar');
+    hamburgerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (navBar.classList.contains('hidden')) {
+        navBar.classList.remove('hidden');
+      } else {
+        navBar.classList.add('hidden');
       }
     });
 
