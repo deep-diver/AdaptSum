@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chat UI with Streaming ChatGPT API, Markdown Messages, Layout Toggle, Summary & Settings</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500&display=swap" rel="stylesheet">
+  <!-- Include marked.js for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Left Navigation Bar -->
+    <div class="nav-bar" id="navBar">
+      <div class="nav-header">
+        <!-- Hamburger & New Chat will appear here when nav is NOT collapsed -->
+        <button id="hamburgerBtn">&#9776;</button>
+        <button class="new-session-btn" id="newSessionBtn">
+            <img src="new-indicator.svg" alt="Icon" class="svg-icon">  
+        </button>
+        <button id="toggleLayoutBtn"><img src="vertical-layout.svg" alt="Icon" class="svg-icon"></button>
+      </div>
+      <!-- <h3>Chat History</h3> -->
+      <ul id="sessionList"></ul>
+    </div>
+
+    <!-- Main Chat Wrapper -->
+    <div class="chat-wrapper">
+      <!-- Chat Header -->
+      <div class="chat-header">
+        <!-- Left portion for hamburger & new chat when collapsed -->
+        <div class="header-left" id="headerLeft"></div>
+
+        <!-- Center portion for the chat title -->
+        <div class="chat-title-controls">
+          <h2 id="chatTitle">Chat Session 1</h2>
+          <button id="editTitleBtn">Edit Title</button>
+        </div>
+
+        <!-- Right portion for turn label -->
+        <div id="turnLabel">Turn: 0 / 0</div>
+      </div>
+
+      <!-- Carousel Wrapper -->
+      <div class="carousel-wrapper" id="carouselWrapper">
+        <button id="prevBtn" class="nav">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <div class="carousel" id="carousel"></div>
+        <button id="nextBtn" class="nav">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Input Section -->
+      <div class="input-container">
+        <div class="button-row">
+            <button id="customBtn1">TLDR</button>
+            <button id="customBtn2"><img src="settings.svg" alt="Icon" class="svg-icon"></button>
+        </div>
+        <div id="fileAttachments" class="file-attachments"></div>
+        <div class="input-row">
+          <button id="attachBtn" class="attach-button">+</button>
+          <input type="file" id="fileInput" multiple accept="image/*,.pdf">
+          <textarea id="chatInput" placeholder="Ask Anything"></textarea>
+          <button id="sendBtn">
+            <img src="send.svg" alt="Icon" class="svg-icon-non-white">
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Overlay -->
+  <div id="summaryOverlay">
+    <div class="summary-header">
+      <span>Chat Summary</span>
+      <div class="summary-header-buttons">
+        <button id="downloadSummary" class="download-summary">Download</button>
+        <button class="close-summary" id="closeSummaryBtn">&times;</button>
+      </div>
+    </div>
+    <div class="summary-content" id="summaryContent"></div>
+  </div>
+
+  <!-- Settings Overlay -->
+  <div id="settingsOverlay">
+    <div class="settings-header">
+      <span>Settings</span>
+      <button class="close-settings" id="closeSettingsBtn">&times;</button>
+    </div>
+    <div class="settings-content">
+      <form id="settingsForm">
+        <div class="settings-group">
+          <label for="temperature">Temperature:</label>
+          <input type="range" id="temperature" name="temperature" min="0" max="1" step="0.01">
+          <span id="temperatureValue"></span>
+        </div>
+        <div class="settings-group">
+          <label for="maxTokens">Max Tokens:</label>
+          <input type="number" id="maxTokens" name="maxTokens" min="10" max="2048">
+        </div>
+        <div class="settings-section">
+            <h3>Model Selection</h3>
+            <div class="settings-group">
+              <label for="modelSelect">Model:</label>
+              <select id="modelSelect" name="modelSelect">
+                <optgroup label="OpenAI">
+                  <option value="gpt-4o">gpt-4o</option>
+                  <option value="gpt-4o-mini">gpt-4o-mini</option>
+                </optgroup>
+                <optgroup label="Anthropic">
+                  <option value="claude-3.5-sonnet">claude-3.5-sonnet</option>
+                  <option value="claude-3.7-sonnet">claude-3.7-sonnet</option>
+                </optgroup>
+                <optgroup label="Google">
+                  <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                  <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>        
+        <div class="settings-group">
+          <label for="persona">Persona:</label>
+          <select id="persona" name="persona">
+            <option value="professional">Professional</option>
+            <option value="friendly">Friendly</option>
+          </select>
+        </div>
+        <button type="button" id="saveSettings" class="save-settings">Save Settings</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
