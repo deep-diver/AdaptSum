@@ -3,15 +3,30 @@
 const MODEL_NAME = "gpt-4o-mini";
 
 // Modified to scroll the current card to the bottom after updating the message.
-function updateLastMessage(content) {
+function updateLastMessage(content, isStreaming = false) {
   const session = sessions[currentSessionIndex];
-  session.messages[session.messages.length - 1].aiResponse = content;
+  const cursorHTML = `<span class="blinking-cursor"></span>`;
+  session.messages[session.messages.length - 1].aiResponse = isStreaming ? content + cursorHTML : content;
+  
+  // Get the current scroll position of the last card before re-rendering
+  const lastCardBefore = document.querySelector('.card:last-child');
+  const prevScrollTop = lastCardBefore ? lastCardBefore.scrollTop : 0;
+  
+  // Re-render the conversation
   renderCurrentSession();
-  // Auto-scroll the current card to the bottom:
-  const cards = document.querySelectorAll('.card');
-  if (cards[currentCardIndex]) {
-    cards[currentCardIndex].scrollTop = cards[currentCardIndex].scrollHeight;
-  }
+  
+  // Use requestAnimationFrame to wait until the new DOM is laid out
+  requestAnimationFrame(() => {
+    const lastCardAfter = document.querySelector('.card:last-child');
+    if (lastCardAfter) {
+      if (isStreaming) {
+        lastCardAfter.scrollTop = lastCardAfter.scrollHeight;
+      } else {
+        // Restore the previous scroll position
+        lastCardAfter.scrollTop = prevScrollTop;
+      }
+    }
+  });
 }
 
 // ----------------- Layout and Navigation -----------------
@@ -66,14 +81,14 @@ let currentSessionIndex = 0;
 let currentCardIndex = 0;
 function initSessions() {
   sessions.push({
-    id: Date.now(),
+    id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
     name: "Chat Session 1",
     title: "Chat Session 1",
     messages: [],
     summary: "# Chat Summary\n\nThis is the default summary for Chat Session 1.",
     settings: {
       temperature: 0.7,
-      maxTokens: 256,
+      maxTokens: 1024,
       persona: "professional",
       model: "gpt-4o-mini" // <-- new property
     }
@@ -111,14 +126,14 @@ function renderSessionList() {
 }
 document.getElementById('newSessionBtn').addEventListener('click', () => {
     const newSession = {
-        id: Date.now(),
+        id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
         name: "Chat Session " + (sessions.length + 1),
         title: "Chat Session " + (sessions.length + 1),
         messages: [],
         summary: "# Chat Summary\n\nThis is the default summary for Chat Session " + (sessions.length + 1) + ".",
         settings: {
             temperature: 0.7,
-            maxTokens: 256,
+            maxTokens: 1024,
             persona: "professional",
             model: "gpt-4o-mini" // <-- default model
         }
@@ -155,7 +170,7 @@ function renderCurrentSession() {
     if (message.attachments && message.attachments.length > 0) {
       attachmentHTML = `
         <div class="vertical-file-list">
-          ${message.attachments.map(name => `<div class="file-item-vertical">${name}</div>`).join("")}
+          ${message.attachments.map(file => `<div class="file-item-vertical">${file.path}</div>`).join("")}
         </div>
       `;
     }
@@ -224,6 +239,25 @@ function processMessagesInContainer(container) {
   container.querySelectorAll('.message').forEach(processMessage);
 }
 // ----------------- Adding Conversation & Stream API Call -----------------
+async function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      // Get the base64 string (remove the data URL prefix)
+      const base64 = reader.result.split(',')[1];
+      resolve({
+        name: file.name,
+        path: file.webkitRelativePath || file.path || file.name,
+        size: file.size,
+        type: file.type,
+        content: base64
+      });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 const attachedFiles = [];
 async function addConversation(userText) {
   if (userText.trim() === '' && attachedFiles.length === 0) return;
@@ -232,20 +266,20 @@ async function addConversation(userText) {
   sessions[currentSessionIndex].messages.push({
     userText,
     aiResponse: "",
-    attachments: attachedFiles.map(file => file.name), // Store file names
-    model: sessions[currentSessionIndex].settings.model
+    attachments: await Promise.all(attachedFiles.map(fileToBase64)),
+    model: sessions[currentSessionIndex].settings.model,
+    sessionId: sessions[currentSessionIndex].id
   });
 
   // Clear attachments after sending
   clearFileAttachments();
-
   renderCurrentSession();
 
   const conversation = [];
   sessions[currentSessionIndex].messages.forEach(msg => {
-    conversation.push({ role: "user", content: msg.userText });
+    conversation.push({ role: "user", content: msg.userText, attachments: msg.attachments, sessionId: msg.sessionId });
     if (msg.aiResponse) {
-      conversation.push({ role: "assistant", content: msg.aiResponse });
+      conversation.push({ role: "assistant", content: msg.aiResponse, sessionId: msg.sessionId });
     }
   });
 
@@ -314,10 +348,12 @@ attachBtn.addEventListener('click', () => {
 fileInput.addEventListener('change', () => {
   for (const file of fileInput.files) {
     attachedFiles.push(file);
+    // Display the file path in the console
   }
   fileInput.value = "";
   updateFileAttachments();
 });
+
 function updateFileAttachments() {
   fileAttachments.innerHTML = "";
   attachedFiles.forEach((file, index) => {
@@ -475,36 +511,42 @@ async function callLLMStream(conversation) {
 
   if (model.startsWith("gpt-4o")) {
     // Call OpenAI endpoint
-    return callOpenAIStream(conversation, model, temperature, maxTokens);
+    return callOpenAIStream(session.id, conversation, model, temperature, maxTokens);
   } else if (model.startsWith("claude")) {
     // Call Anthropic endpoint
-    return callAnthropicStream(conversation, model, temperature, maxTokens);
+    return callAnthropicStream(session.id, conversation, model, temperature, maxTokens);
   } else if (model.startsWith("gemini")) {
     // Call Google endpoint
-    return callGoogleStream(conversation, model, temperature, maxTokens);
+    return callGoogleStream(session.id, conversation, model, temperature, maxTokens);
+  } else if (model.startsWith("huggingface")) {
+    // Call Hugging Face endpoint
+    return callHuggingFaceStream(session.id, conversation, model.replace("huggingface/", ""), temperature, maxTokens);
   } else {
     throw new Error("Unsupported model: " + model);
   }
 }
 
-async function callOpenAIStream(conversation) {
+async function callOpenAIStream(sessionId, conversation) {
   const response = await fetch("http://127.0.0.1:8000/openai_stream", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      "X-Session-ID": sessionId
       // Remove the Authorization header since the Python backend handles the API key.
     },
     body: JSON.stringify({
       conversation: conversation,
       temperature: sessions[currentSessionIndex].settings.temperature,
       max_tokens: sessions[currentSessionIndex].settings.maxTokens,
-      model: MODEL_NAME
+      model: MODEL_NAME,
     })
   });
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
   let done = false;
   let aiMessage = "";
+
+  updateLastMessage(aiMessage, true);
   while (!done) {
     const { value, done: doneReading } = await reader.read();
     done = doneReading;
@@ -523,31 +565,33 @@ async function callOpenAIStream(conversation) {
         const delta = parsed.choices[0].delta.content;
         if (delta) {
           aiMessage += delta;
-          updateLastMessage(aiMessage);
+          updateLastMessage(aiMessage, true);
         }
       } catch (err) {
         console.error("Stream parsing error:", err);
       }
     }
   }
+  updateLastMessage(aiMessage, false);
   return aiMessage;
 }
 
 
-async function callAnthropicStream(conversation, model, temperature, maxTokens) {
+async function callAnthropicStream(sessionId, conversation, model, temperature, maxTokens) {
   model = model.toLowerCase().replace(/\s+/g, '-').replace(/\./g, '-');
   console.log(`Calling Anthropic API with model: ${model}`);
   
   const response = await fetch("http://127.0.0.1:8000/anthropic_stream", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      "X-Session-ID": sessionId
     },
     body: JSON.stringify({
       messages: conversation,
       temperature: temperature,
       max_tokens: maxTokens,
-      model: model + "-latest"
+      model: model + "-latest",
     })
   });
   
@@ -556,6 +600,7 @@ async function callAnthropicStream(conversation, model, temperature, maxTokens) 
   let done = false;
   let aiMessage = "";
   
+  updateLastMessage(aiMessage, true);
   while (!done) {
     const { value, done: doneReading } = await reader.read();
     done = doneReading;
@@ -574,32 +619,33 @@ async function callAnthropicStream(conversation, model, temperature, maxTokens) 
         const delta = parsed.choices[0].delta.content;
         if (delta) {
           aiMessage += delta;
-          updateLastMessage(aiMessage);
+          updateLastMessage(aiMessage, true);
         }
       } catch (err) {
         console.error("Anthropic stream parsing error:", err);
       }
     }
   }
-  
+  updateLastMessage(aiMessage, false);
   return aiMessage;
 
 }
 
-async function callGoogleStream(conversation, model, temperature, maxTokens) {
+async function callGoogleStream(sessionId, conversation, model, temperature, maxTokens) {
   // Convert conversation messages to Gemini's "contents" format.
   model = model.toLowerCase().replace(/\s+/g, '-');
   console.log(model);  
   const response = await fetch("http://127.0.0.1:8000/gemini_stream", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      "X-Session-ID": sessionId
     },
     body: JSON.stringify({
       messages: conversation,
       temperature: temperature,
       max_tokens: maxTokens,
-      model: model
+      model: model,
     })
   });
   
@@ -607,7 +653,8 @@ async function callGoogleStream(conversation, model, temperature, maxTokens) {
   const decoder = new TextDecoder("utf-8");
   let done = false;
   let aiMessage = "";
-  
+
+  updateLastMessage(aiMessage, true);
   while (!done) {
     const { value, done: doneReading } = await reader.read();
     done = doneReading;
@@ -626,18 +673,67 @@ async function callGoogleStream(conversation, model, temperature, maxTokens) {
         const delta = parsed.choices[0].delta.content;
         if (delta) {
           aiMessage += delta;
-          updateLastMessage(aiMessage);
+          updateLastMessage(aiMessage, true);
         }
       } catch (err) {
         console.error("Gemini stream parsing error:", err);
       }
     }
   }
-  
+  updateLastMessage(aiMessage, false);
   return aiMessage;
-
 }
 
+async function callHuggingFaceStream(sessionId, conversation, model, temperature, maxTokens) {
+  console.log(`Calling Hugging Face API with model: ${model}`);
+  const response = await fetch("http://127.0.0.1:8000/huggingface_stream", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Session-ID": sessionId
+    },
+    body: JSON.stringify({
+      messages: conversation,
+      temperature: temperature,
+      max_tokens: maxTokens,
+      model: model,
+    })
+  }); 
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let done = false;
+  let aiMessage = ""; 
+
+  updateLastMessage(aiMessage, true);
+  while (!done) {
+    const { value, done: doneReading } = await reader.read();
+    done = doneReading;
+    const chunk = decoder.decode(value);
+    const lines = chunk.split("\n").filter(line => line.trim().startsWith("data:"));  
+
+    for (const line of lines) {
+      const dataStr = line.replace(/^data:\s*/, "");
+      if (dataStr === "[DONE]") {
+        done = true;
+        break;
+      } 
+
+      try {
+        const parsed = JSON.parse(dataStr);
+        const delta = parsed.choices[0].delta.content;
+        if (delta) {
+          aiMessage += delta;
+          updateLastMessage(aiMessage, true);
+        }
+      } catch (err) {
+        console.error("Hugging Face stream parsing error:", err);
+      }
+    }
+  }
+  updateLastMessage(aiMessage, false);
+  return aiMessage;
+}
 
 // ----------------- Initialization -----------------
 initSessions();

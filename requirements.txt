@@ -2,3 +2,5 @@ google-genai==0.7.0
 toml
 gradio
 pydantic==2.10.5
+pypdf2
+aiohttp
