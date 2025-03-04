@@ -1,5 +1,7 @@
 # AdaptSum
 
+[![Sync to Hugging Face Spaces](https://github.com/deep-diver/AdaptSum/actions/workflows/sync_to_spaces.yml/badge.svg)](https://github.com/deep-diver/AdaptSum/actions/workflows/sync_to_spaces.yml)
+
 AdaptSum stands for Adaptive Summarization. This project focuses on developing an LLM-powered system for dynamic summarization. Instead of generating entirely new summaries with each update, the system intelligently identifies and modifies only the necessary parts of the existing summary. This approach aims to create a more efficient and fluid summarization process within a continuous chat interaction with an LLM.
 
 # Instructions
