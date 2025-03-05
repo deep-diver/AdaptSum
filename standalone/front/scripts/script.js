@@ -1,30 +1,44 @@
-// ----------------- ChatGPT API (Stream Mode) -----------------
-// Define a constant for the model name so it is used in both API call and UI.
-const MODEL_NAME = "gpt-4o-mini";
+let isStreaming = false;
+let currentStreamController = null;
+
+marked.setOptions({
+  highlight: function (code, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      return hljs.highlight(code, { language: lang }).value;
+    }
+    return hljs.highlightAuto(code).value;
+  },
+});
+
+function formatTimestamp(isoString) {
+  const date = new Date(isoString);
+  return date.toLocaleString([], {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
 
 // Modified to scroll the current card to the bottom after updating the message.
 function updateLastMessage(content, isStreaming = false) {
   const session = sessions[currentSessionIndex];
   const cursorHTML = `<span class="blinking-cursor"></span>`;
   session.messages[session.messages.length - 1].aiResponse = isStreaming ? content + cursorHTML : content;
-  
-  // Get the current scroll position of the last card before re-rendering
-  const lastCardBefore = document.querySelector('.card:last-child');
-  const prevScrollTop = lastCardBefore ? lastCardBefore.scrollTop : 0;
-  
-  // Re-render the conversation
+
+  // Re-render the entire conversation
   renderCurrentSession();
-  
-  // Use requestAnimationFrame to wait until the new DOM is laid out
+
+  // Wait until the DOM updates, then highlight code blocks
   requestAnimationFrame(() => {
-    const lastCardAfter = document.querySelector('.card:last-child');
-    if (lastCardAfter) {
-      if (isStreaming) {
-        lastCardAfter.scrollTop = lastCardAfter.scrollHeight;
-      } else {
-        // Restore the previous scroll position
-        lastCardAfter.scrollTop = prevScrollTop;
-      }
+    document.querySelectorAll('pre code').forEach((block) => {
+      hljs.highlightElement(block);
+    });
+    // Optionally adjust scroll position here as well.
+    const lastCard = document.querySelector('.card:last-child');
+    if (lastCard) {
+      lastCard.scrollTop = isStreaming ? lastCard.scrollHeight : lastCard.scrollTop;
     }
   });
 }
@@ -39,41 +53,22 @@ function updateLayout() {
     carouselWrapper.classList.add('traditional-mode');
     prevBtn.style.display = 'none';
     nextBtn.style.display = 'none';
-    toggleLayoutBtn.innerHTML = `<img src="vertical.svg" alt="Icon" class="svg-icon">`;
+    toggleLayoutBtn.innerHTML = `<img src="assets/vertical.svg" alt="Icon" class="svg-icon">`;
   } else {
     carousel.classList.remove('traditional');
     carouselWrapper.classList.remove('traditional-mode');
     prevBtn.style.display = '';
     nextBtn.style.display = '';
-    toggleLayoutBtn.innerHTML = `<img src="horizontal.svg" alt="Icon" class="svg-icon">`;
+    toggleLayoutBtn.innerHTML = `<img src="assets/horizontal.svg" alt="Icon" class="svg-icon">`;
   }
   updateTurnLabel(sessionMessagesCount());
 }
-toggleLayoutBtn.addEventListener('click', function() {
+toggleLayoutBtn.addEventListener('click', function () {
   isTraditionalLayout = !isTraditionalLayout;
   updateLayout();
 });
 
 // This function will move hamburger + new chat button between nav-bar and the chat header
-function updateHamburgerPosition() {
-  const hamburgerBtn = document.getElementById('hamburgerBtn');
-  const newSessionBtn = document.getElementById('newSessionBtn');
-  const toggleLayoutBtn = document.getElementById('toggleLayoutBtn');
-  const navBar = document.getElementById('navBar');
-  const navHeader = navBar.querySelector('.nav-header');
-  const headerLeft = document.getElementById('headerLeft');
-  if (navBar.classList.contains('hidden')) {
-    // Move both hamburger and new chat to header-left
-    headerLeft.appendChild(hamburgerBtn);
-    headerLeft.appendChild(newSessionBtn);
-    headerLeft.appendChild(toggleLayoutBtn);    
-  } else {
-    // Move both back to navHeader
-    navHeader.appendChild(hamburgerBtn);
-    navHeader.appendChild(newSessionBtn);
-    navHeader.appendChild(toggleLayoutBtn);
-  }
-}
 
 // ----------------- Session Management -----------------
 let sessions = [];
@@ -88,9 +83,10 @@ function initSessions() {
     summary: "# Chat Summary\n\nThis is the default summary for Chat Session 1.",
     settings: {
       temperature: 0.7,
-      maxTokens: 1024,
+      maxTokens: 8096,
       persona: "professional",
-      model: "gpt-4o-mini" // <-- new property
+      model: "gpt-4o-mini",
+      enableSummarization: false
     }
   });
   currentSessionIndex = 0;
@@ -125,19 +121,20 @@ function renderSessionList() {
   });
 }
 document.getElementById('newSessionBtn').addEventListener('click', () => {
-    const newSession = {
-        id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
-        name: "Chat Session " + (sessions.length + 1),
-        title: "Chat Session " + (sessions.length + 1),
-        messages: [],
-        summary: "# Chat Summary\n\nThis is the default summary for Chat Session " + (sessions.length + 1) + ".",
-        settings: {
-            temperature: 0.7,
-            maxTokens: 1024,
-            persona: "professional",
-            model: "gpt-4o-mini" // <-- default model
-        }
-    };
+  const newSession = {
+    id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+    name: "Chat Session " + (sessions.length + 1),
+    title: "Chat Session " + (sessions.length + 1),
+    messages: [],
+    summary: "# Chat Summary\n\nThis is the default summary for Chat Session " + (sessions.length + 1) + ".",
+    settings: {
+      temperature: 0.7,
+      maxTokens: 8096,
+      persona: "professional",
+      model: "gpt-4o-mini",
+      enableSummarization: false
+    }
+  };
 
   sessions.push(newSession);
   currentSessionIndex = sessions.length - 1;
@@ -160,6 +157,38 @@ function removeSession(index) {
 }
 // ----------------- Carousel Rendering / Traditional Layout -----------------
 const carousel = document.getElementById('carousel');
+function addCopyButtons() {
+  document.querySelectorAll('.markdown-body pre').forEach((pre) => {
+    // Avoid adding multiple copy buttons
+    if (pre.querySelector('.copy-button')) return;
+
+    // Ensure the pre element can position the button correctly
+    pre.style.position = "relative";
+
+    // Create the copy button
+    const button = document.createElement("button");
+    button.className = "copy-button";
+    button.innerText = "Copy";
+
+    // Append the button inside the <pre> element
+    pre.appendChild(button);
+
+    // Add click event listener for copying the code
+    button.addEventListener("click", () => {
+      // Get the code text from the child <code> element
+      const codeText = pre.querySelector("code").innerText;
+      navigator.clipboard.writeText(codeText).then(() => {
+        button.innerText = "Copied!";
+        setTimeout(() => {
+          button.innerText = "Copy";
+        }, 2000);
+      }).catch((err) => {
+        console.error("Failed to copy code: ", err);
+      });
+    });
+  });
+}
+
 function renderCurrentSession() {
   const session = sessions[currentSessionIndex];
   carousel.innerHTML = "";
@@ -176,17 +205,20 @@ function renderCurrentSession() {
     }
     // Order: User message then AI message, rendered in Markdown
     card.innerHTML = `
-      <div class="conversation">
-        <div class="message user">
-          ${attachmentHTML}
-          <div class="message-text markdown-body">${marked.parse(message.userText)}</div>
-        </div>
-        <div class="message ai">
-          <div class="message-text markdown-body">${marked.parse(message.aiResponse)}</div>
-          <div class="ai-status">${message.model || session.settings.model}</div>
+    <div class="conversation">
+      <div class="message user">
+        ${attachmentHTML}
+        <div class="message-text markdown-body">${marked.parse(message.userText)}</div>
+      </div>
+      <div class="message ai">
+        <div class="message-text markdown-body">${marked.parse(message.aiResponse)}</div>
+        <div class="ai-meta">
+          <span class="ai-model">${message.model}</span>
+          <span class="ai-timestamp"> @${formatTimestamp(message.timestamp)}</span>
         </div>
       </div>
-    `;
+    </div>
+  `;
     carousel.appendChild(card);
     processMessagesInContainer(card);
   });
@@ -194,7 +226,16 @@ function renderCurrentSession() {
   updateCarousel();
   updateLayout();
   document.getElementById('chatTitle').textContent = session.title;
+
+  // Re-run syntax highlighting for any new code blocks
+  document.querySelectorAll('.markdown-body pre code').forEach((block) => {
+    hljs.highlightElement(block);
+  });
+
+  // Add copy buttons to each code block
+  addCopyButtons();
 }
+
 function updateCarousel() {
   if (!isTraditionalLayout) {
     const cards = document.querySelectorAll('.card');
@@ -222,7 +263,7 @@ function processMessage(messageEl) {
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'toggle-btn';
     toggleBtn.textContent = 'Read more';
-    toggleBtn.addEventListener('click', function() {
+    toggleBtn.addEventListener('click', function () {
       if (messageEl.classList.contains('expanded')) {
         messageEl.classList.remove('expanded');
         toggleBtn.textContent = 'Read more';
@@ -259,19 +300,22 @@ async function fileToBase64(file) {
 }
 
 const attachedFiles = [];
+
 async function addConversation(userText) {
   if (userText.trim() === '' && attachedFiles.length === 0) return;
 
-  // Store message with attachments
   sessions[currentSessionIndex].messages.push({
     userText,
     aiResponse: "",
     attachments: await Promise.all(attachedFiles.map(fileToBase64)),
     model: sessions[currentSessionIndex].settings.model,
+    timestamp: new Date().toISOString(), // Store the timestamp as ISO string 
+    maxTokens: sessions[currentSessionIndex].settings.maxTokens,
+    temperature: sessions[currentSessionIndex].settings.temperature,
+    persona: sessions[currentSessionIndex].settings.persona,
     sessionId: sessions[currentSessionIndex].id
   });
 
-  // Clear attachments after sending
   clearFileAttachments();
   renderCurrentSession();
 
@@ -283,14 +327,40 @@ async function addConversation(userText) {
     }
   });
 
+  // Set up the AbortController for streaming
+  currentStreamController = new AbortController();
+  isStreaming = true;
+  // Change the send button icon to a stop button icon
+  sendBtn.innerHTML = `<img src="assets/stop.svg" alt="Stop Icon" class="svg-icon-non-white">`;
+
   try {
-    const aiResponse = await callLLMStream(conversation);
+    // Pass the abort signal to your streaming function
+    const aiResponse = await callLLMStream(conversation, currentStreamController.signal);
     sessions[currentSessionIndex].messages[sessions[currentSessionIndex].messages.length - 1].aiResponse = aiResponse;
     renderCurrentSession();
+    // If summarization is enabled, call it after the stream is complete
+    if (sessions[currentSessionIndex].settings.enableSummarization) {
+      const session = sessions[currentSessionIndex];
+      await callLLMSummaryBatch(
+        session.id,
+        sessions[currentSessionIndex].messages,
+        session.settings.model,
+        session.settings.temperature,
+        session.settings.maxTokens
+      );
+    }
   } catch (err) {
-    console.error(err);
-    sessions[currentSessionIndex].messages[sessions[currentSessionIndex].messages.length - 1].aiResponse = "Error: " + err.message;
-    renderCurrentSession();
+    if (err.name === 'AbortError') {
+      console.log('Streaming aborted by user.');
+    } else {
+      console.error(err);
+      sessions[currentSessionIndex].messages[sessions[currentSessionIndex].messages.length - 1].aiResponse = "Error: " + err.message;
+      renderCurrentSession();
+    }
+  } finally {
+    // Revert the button icon to send after streaming stops/aborts
+    sendBtn.innerHTML = `<img src="assets/send.svg" alt="Send Icon" class="svg-icon-non-white">`;
+    isStreaming = false;
   }
 }
 
@@ -300,7 +370,7 @@ function clearFileAttachments() {
 }
 // ----------------- Auto-resize Textarea -----------------
 const chatInput = document.getElementById('chatInput');
-chatInput.addEventListener('input', function() {
+chatInput.addEventListener('input', function () {
   this.style.height = 'auto';
   this.style.height = this.scrollHeight + 'px';
 });
@@ -310,6 +380,26 @@ function resetTextarea() {
 // ----------------- Send Message -----------------
 const sendBtn = document.getElementById('sendBtn');
 sendBtn.addEventListener('click', async () => {
+  // If streaming is already in progress, stop it.
+  if (isStreaming) {
+    if (currentStreamController) {
+      currentStreamController.abort();  // Abort the streaming fetch
+    }
+    // Remove blinking cursor from the last message:
+    const session = sessions[currentSessionIndex];
+    const lastIndex = session.messages.length - 1;
+    const currentContent = session.messages[lastIndex].aiResponse;
+    // Remove the blinking cursor element from the string if present
+    const cleanedContent = currentContent.replace(`<span class="blinking-cursor"></span>`, '');
+    updateLastMessage(cleanedContent, false);
+
+    // Revert the button back to the send icon
+    sendBtn.innerHTML = `<img src="assets/send.svg" alt="Send Icon" class="svg-icon-non-white">`;
+    isStreaming = false;
+    return;
+  }
+
+  // Otherwise, start sending the message
   const text = chatInput.value;
   if (text.trim() !== '') {
     await addConversation(text);
@@ -317,7 +407,9 @@ sendBtn.addEventListener('click', async () => {
     resetTextarea();
   }
 });
-chatInput.addEventListener('keydown', function(e) {
+
+
+chatInput.addEventListener('keydown', function (e) {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
     sendBtn.click();
@@ -402,14 +494,18 @@ temperatureInput.addEventListener('input', () => {
   temperatureValue.textContent = temperatureInput.value;
 });
 saveSettingsBtn.addEventListener('click', () => {
-  sessions[currentSessionIndex].settings = {
-    temperature: parseFloat(temperatureInput.value),
-    maxTokens: parseInt(maxTokensInput.value),
-    persona: personaSelect.value
-  };
+  const sessionSettings = sessions[currentSessionIndex].settings;
+  sessionSettings.temperature = parseFloat(temperatureInput.value);
+  sessionSettings.maxTokens = parseInt(maxTokensInput.value);
+  sessionSettings.persona = personaSelect.value;
+  sessionSettings.model = modelSelect.value;
+  // Read the summarization toggle value
+  sessionSettings.enableSummarization = document.getElementById('toggleSummarization').checked;
+
   console.log('Session settings saved:', sessions[currentSessionIndex].settings);
   settingsOverlay.classList.remove('active');
 });
+
 // ----------------- Title Editing -----------------
 const editTitleBtn = document.getElementById('editTitleBtn');
 editTitleBtn.addEventListener('click', () => {
@@ -505,28 +601,133 @@ saveSettingsBtn.addEventListener('click', () => {
   settingsOverlay.classList.remove('active');
 });
 
-async function callLLMStream(conversation) {
+async function callLLMStream(conversation, signal) {
   const session = sessions[currentSessionIndex];
   const { model, temperature, maxTokens } = session.settings;
 
   if (model.startsWith("gpt-4o")) {
     // Call OpenAI endpoint
-    return callOpenAIStream(session.id, conversation, model, temperature, maxTokens);
+    return callOpenAIStream(session.id, conversation, signal);
   } else if (model.startsWith("claude")) {
     // Call Anthropic endpoint
-    return callAnthropicStream(session.id, conversation, model, temperature, maxTokens);
+    return callAnthropicStream(session.id, conversation, signal);
   } else if (model.startsWith("gemini")) {
     // Call Google endpoint
-    return callGoogleStream(session.id, conversation, model, temperature, maxTokens);
+    return callGoogleStream(session.id, conversation, signal);
   } else if (model.startsWith("huggingface")) {
     // Call Hugging Face endpoint
-    return callHuggingFaceStream(session.id, conversation, model.replace("huggingface/", ""), temperature, maxTokens);
+    return callHuggingFaceStream(session.id, conversation, model.replace("huggingface/", ""), signal);
+  } else if (model.startsWith("mistral")) {
+    // Call Mistral endpoint
+    return callMistralStream(session.id, conversation, model, signal);
   } else {
     throw new Error("Unsupported model: " + model);
   }
 }
 
-async function callOpenAIStream(sessionId, conversation) {
+async function callLLMSummaryBatch(sessionId, conversation, model, temperature, maxTokens) {
+  const loadingOverlay = document.getElementById("loadingOverlay");
+  loadingOverlay.classList.add("active");
+
+  let endpoint = "";
+  if (model.startsWith("gpt-4o")) {
+    endpoint = "http://127.0.0.1:8000/openai_summary";
+  } else if (model.startsWith("claude")) {
+    endpoint = "http://127.0.0.1:8000/anthropic_summary";
+  } else if (model.startsWith("gemini")) {
+    endpoint = "http://127.0.0.1:8000/gemini_summary";
+  } else if (model.startsWith("huggingface")) {
+    endpoint = "http://127.0.0.1:8000/huggingface_summary";
+  } else if (model.startsWith("mistral")) {
+    endpoint = "http://127.0.0.1:8000/mistral_summary";
+  } else {
+    throw new Error("Unsupported model for summary: " + model);
+  }
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Session-ID": sessionId
+    },
+    body: JSON.stringify({
+      conversation: conversation,
+      temperature: temperature,
+      max_tokens: maxTokens,
+      model: model,
+    })
+  });
+
+  // Since the summary endpoint returns batch data,
+  // wait for the full response text.
+  const responseData = await response.json();
+  const summaryText = responseData.summary;
+  sessions[currentSessionIndex].summary = summaryText;
+
+  // Optionally update the summary overlay if it is open
+  const summaryOverlay = document.getElementById('summaryOverlay');
+  if (summaryOverlay.classList.contains('active')) {
+    document.getElementById('summaryContent').innerHTML = marked.parse(summaryText);
+  }
+
+  loadingOverlay.classList.remove("active");
+
+  return summaryText;
+}
+
+
+async function callMistralStream(sessionId, conversation, signal) {
+  console.log(`Calling Mistral API with model: ${model}`);
+  const response = await fetch("http://127.0.0.1:8000/mistral_stream", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Session-ID": sessionId
+    },
+    body: JSON.stringify({
+      conversation: conversation,
+      temperature: sessions[currentSessionIndex].settings.temperature,
+      max_tokens: sessions[currentSessionIndex].settings.maxTokens,
+      model: sessions[currentSessionIndex].settings.model,
+    }),
+    signal: signal
+  });
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let done = false;
+  let aiMessage = "";
+
+  updateLastMessage(aiMessage, true);
+  while (!done) {
+    const { value, done: doneReading } = await reader.read();
+    done = doneReading;
+    const chunk = decoder.decode(value);
+    const lines = chunk.split("\n").filter(line => line.trim().startsWith("data:"));
+    for (const line of lines) {
+      const dataStr = line.replace(/^data:\s*/, "");
+      if (dataStr === "[DONE]") {
+        done = true;
+        break;
+      }
+      try {
+        const parsed = JSON.parse(dataStr);
+        const delta = parsed.choices[0].delta.content;
+        if (delta) {
+          aiMessage += delta;
+          updateLastMessage(aiMessage, true);
+        }
+      } catch (err) {
+        console.error("Mistral stream parsing error:", err);
+      }
+    }
+  }
+  updateLastMessage(aiMessage, false);
+  return aiMessage;
+}
+
+
+async function callOpenAIStream(sessionId, conversation, signal) {
   const response = await fetch("http://127.0.0.1:8000/openai_stream", {
     method: "POST",
     headers: {
@@ -538,8 +739,9 @@ async function callOpenAIStream(sessionId, conversation) {
       conversation: conversation,
       temperature: sessions[currentSessionIndex].settings.temperature,
       max_tokens: sessions[currentSessionIndex].settings.maxTokens,
-      model: MODEL_NAME,
-    })
+      model: sessions[currentSessionIndex].settings.model,
+    }),
+    signal: signal
   });
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
@@ -577,10 +779,10 @@ async function callOpenAIStream(sessionId, conversation) {
 }
 
 
-async function callAnthropicStream(sessionId, conversation, model, temperature, maxTokens) {
+async function callAnthropicStream(sessionId, conversation, signal) {
   model = model.toLowerCase().replace(/\s+/g, '-').replace(/\./g, '-');
   console.log(`Calling Anthropic API with model: ${model}`);
-  
+
   const response = await fetch("http://127.0.0.1:8000/anthropic_stream", {
     method: "POST",
     headers: {
@@ -589,31 +791,32 @@ async function callAnthropicStream(sessionId, conversation, model, temperature, 
     },
     body: JSON.stringify({
       messages: conversation,
-      temperature: temperature,
-      max_tokens: maxTokens,
-      model: model + "-latest",
-    })
+      temperature: sessions[currentSessionIndex].settings.temperature,
+      max_tokens: sessions[currentSessionIndex].settings.maxTokens,
+      model: sessions[currentSessionIndex].settings.model + "-latest",
+    }),
+    signal: signal
   });
-  
+
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
   let done = false;
   let aiMessage = "";
-  
+
   updateLastMessage(aiMessage, true);
   while (!done) {
     const { value, done: doneReading } = await reader.read();
     done = doneReading;
     const chunk = decoder.decode(value);
     const lines = chunk.split("\n").filter(line => line.trim().startsWith("data:"));
-    
+
     for (const line of lines) {
       const dataStr = line.replace(/^data:\s*/, "");
       if (dataStr === "[DONE]") {
         done = true;
         break;
       }
-      
+
       try {
         const parsed = JSON.parse(dataStr);
         const delta = parsed.choices[0].delta.content;
@@ -631,10 +834,7 @@ async function callAnthropicStream(sessionId, conversation, model, temperature, 
 
 }
 
-async function callGoogleStream(sessionId, conversation, model, temperature, maxTokens) {
-  // Convert conversation messages to Gemini's "contents" format.
-  model = model.toLowerCase().replace(/\s+/g, '-');
-  console.log(model);  
+async function callGoogleStream(sessionId, conversation, signal) {
   const response = await fetch("http://127.0.0.1:8000/gemini_stream", {
     method: "POST",
     headers: {
@@ -643,12 +843,13 @@ async function callGoogleStream(sessionId, conversation, model, temperature, max
     },
     body: JSON.stringify({
       messages: conversation,
-      temperature: temperature,
-      max_tokens: maxTokens,
-      model: model,
-    })
+      temperature: sessions[currentSessionIndex].settings.temperature,
+      max_tokens: sessions[currentSessionIndex].settings.maxTokens,
+      model: sessions[currentSessionIndex].settings.model.toLowerCase().replace(/\s+/g, '-')
+    }),
+    signal: signal
   });
-  
+
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
   let done = false;
@@ -660,14 +861,14 @@ async function callGoogleStream(sessionId, conversation, model, temperature, max
     done = doneReading;
     const chunk = decoder.decode(value);
     const lines = chunk.split("\n").filter(line => line.trim().startsWith("data:"));
-    
+
     for (const line of lines) {
       const dataStr = line.replace(/^data:\s*/, "");
       if (dataStr === "[DONE]") {
         done = true;
         break;
       }
-      
+
       try {
         const parsed = JSON.parse(dataStr);
         const delta = parsed.choices[0].delta.content;
@@ -684,7 +885,7 @@ async function callGoogleStream(sessionId, conversation, model, temperature, max
   return aiMessage;
 }
 
-async function callHuggingFaceStream(sessionId, conversation, model, temperature, maxTokens) {
+async function callHuggingFaceStream(sessionId, conversation, signal) {
   console.log(`Calling Hugging Face API with model: ${model}`);
   const response = await fetch("http://127.0.0.1:8000/huggingface_stream", {
     method: "POST",
@@ -694,30 +895,31 @@ async function callHuggingFaceStream(sessionId, conversation, model, temperature
     },
     body: JSON.stringify({
       messages: conversation,
-      temperature: temperature,
-      max_tokens: maxTokens,
-      model: model,
-    })
-  }); 
+      temperature: sessions[currentSessionIndex].settings.temperature,
+      max_tokens: sessions[currentSessionIndex].settings.maxTokens,
+      model: sessions[currentSessionIndex].settings.model,
+    }),
+    signal: signal
+  });
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
   let done = false;
-  let aiMessage = ""; 
+  let aiMessage = "";
 
   updateLastMessage(aiMessage, true);
   while (!done) {
     const { value, done: doneReading } = await reader.read();
     done = doneReading;
     const chunk = decoder.decode(value);
-    const lines = chunk.split("\n").filter(line => line.trim().startsWith("data:"));  
+    const lines = chunk.split("\n").filter(line => line.trim().startsWith("data:"));
 
     for (const line of lines) {
       const dataStr = line.replace(/^data:\s*/, "");
       if (dataStr === "[DONE]") {
         done = true;
         break;
-      } 
+      }
 
       try {
         const parsed = JSON.parse(dataStr);

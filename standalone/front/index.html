@@ -7,8 +7,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500&display=swap" rel="stylesheet">
   <!-- Include marked.js for Markdown rendering -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <link rel="stylesheet" href="style.css">
-  <link rel="icon" type="image/png" href="favicon-32x32.png">
+  <link rel="stylesheet" href="styles/style.css">
+  <link rel="icon" type="image/png" href="assets/favicon-32x32.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
 </head>
 <body>
   <div class="app-container">
@@ -18,9 +20,9 @@
         <!-- Hamburger & New Chat will appear here when nav is NOT collapsed -->
         <button id="hamburgerBtn">&#9776;</button>
         <button class="new-session-btn" id="newSessionBtn">
-            <img src="new-indicator.svg" alt="Icon" class="svg-icon">  
+            <img src="assets/new-indicator.svg" alt="Icon" class="svg-icon">  
         </button>
-        <button id="toggleLayoutBtn"><img src="vertical.svg" alt="Icon" class="svg-icon"></button>
+        <button id="toggleLayoutBtn"><img src="assets/vertical.svg" alt="Icon" class="svg-icon"></button>
       </div>
       <!-- <h3>Chat History</h3> -->
       <ul id="sessionList"></ul>
@@ -62,7 +64,8 @@
       <div class="input-container">
         <div class="button-row">
             <button id="customBtn1">TLDR</button>
-            <button id="customBtn2"><img src="settings.svg" alt="Icon" class="svg-icon"></button>
+            <button id="customBtn3" class="toggle-btn-summarize"><img src="assets/summarize.svg" alt="Icon" class="svg-icon"></button>
+            <button id="customBtn2"><img src="assets/settings.svg" alt="Icon" class="svg-icon"></button>
         </div>
         <div id="fileAttachments" class="file-attachments"></div>
         <div class="input-row">
@@ -70,7 +73,7 @@
           <input type="file" id="fileInput" multiple accept="application/pdf">
           <textarea id="chatInput" placeholder="Ask Anything"></textarea>
           <button id="sendBtn">
-            <img src="send.svg" alt="Icon" class="svg-icon-non-white">
+            <img src="assets/send.svg" alt="Icon" class="svg-icon-non-white">
           </button>
         </div>
       </div>
@@ -86,7 +89,7 @@
         <button class="close-summary" id="closeSummaryBtn">&times;</button>
       </div>
     </div>
-    <div class="summary-content" id="summaryContent"></div>
+    <div class="summary-content markdown-body" id="summaryContent"></div>
   </div>
 
   <!-- Settings Overlay -->
@@ -109,7 +112,6 @@
         <div class="settings-section">
             <h3>Model Selection</h3>
             <div class="settings-group">
-              <label for="modelSelect">Model:</label>
               <select id="modelSelect" name="modelSelect">
                 <optgroup label="OpenAI">
                   <option value="gpt-4o">gpt-4o</option>
@@ -128,6 +130,11 @@
                   <option value="huggingface/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B">DeepSeek R1 Distill Qwen 32B</option>
                   <option value="huggingface/Qwen/Qwen2.5-72B-Instruct">Qwen 2.5 72B Instruct</option>
                 </optgroup>
+                <optgroup label="Mistral">
+                  <option value="mistral-large-latest">Mistral Large</option>
+                  <option value="mistral-codestral-latest">CodeStral</option>
+                  <option value="mistral-ministral-8b-latest">MiniStral 8B</option>
+                </optgroup>
               </select>
             </div>
           </div>        
@@ -143,6 +150,14 @@
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-animation">
+      <div class="ripple"></div>
+      <div class="ripple"></div>
+    </div>
+    <p>Generating summary...</p>
+  </div>  
+
+  <script type="module" src="scripts/main.js"></script>
 </body>
 </html>
