@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Chat UI with Streaming ChatGPT API, Markdown Messages, Layout Toggle, Summary & Settings</title>
+  <title>Unimaginable Chat UI</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500&display=swap" rel="stylesheet">
   <!-- Include marked.js for Markdown rendering -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -26,6 +26,61 @@
       </div>
       <!-- <h3>Chat History</h3> -->
       <ul id="sessionList"></ul>
+      <div id="presetContainer">
+        <div class="preset-header">Model Selection Presets</div>
+        <select id="preset1" class="preset-select" title="Command + Shift + 1">
+          <optgroup label="OpenAI">
+            <option value="gpt-4o">GPT-4o</option>
+            <option value="gpt-4o-mini">GPT-4o Mini</option>
+          </optgroup>
+          <optgroup label="Anthropic">
+            <option value="claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+            <option value="claude-3.7-sonnet">Claude 3.7 Sonnet</option>
+          </optgroup>
+          <optgroup label="Google">
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+            <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite</option>
+          </optgroup>
+          <optgroup label="Hugging Face">
+            <option value="huggingface/meta-llama/Llama-3.3-70B-Instruct">Llama 3.3 70B Instruct</option>
+            <option value="huggingface/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B">DeepSeek R1 Distill Qwen 32B</option>
+            <option value="huggingface/Qwen/Qwen2.5-72B-Instruct">Qwen 2.5 72B Instruct</option>
+          </optgroup>
+          <optgroup label="Mistral">
+            <option value="mistral-large-latest">Mistral Large</option>
+            <option value="mistral-codestral-latest">CodeStral</option>
+            <option value="mistral-ministral-8b-latest">Ministral 8B</option>
+            <option value="mistral-ministral-3b-latest">Ministral 3B</option>
+          </optgroup>
+        </select>
+      
+        <select id="preset2" class="preset-select" title="Command + Shift + 2">
+          <!-- Use the same options as above -->
+          <optgroup label="OpenAI">
+            <option value="gpt-4o">GPT-4o</option>
+            <option value="gpt-4o-mini">GPT-4o Mini</option>
+          </optgroup>
+          <optgroup label="Anthropic">
+            <option value="claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+            <option value="claude-3.7-sonnet">Claude 3.7 Sonnet</option>
+          </optgroup>
+          <optgroup label="Google">
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+            <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite</option>
+          </optgroup>
+          <optgroup label="Hugging Face">
+            <option value="huggingface/meta-llama/Llama-3.3-70B-Instruct">Llama 3.3 70B Instruct</option>
+            <option value="huggingface/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B">DeepSeek R1 Distill Qwen 32B</option>
+            <option value="huggingface/Qwen/Qwen2.5-72B-Instruct">Qwen 2.5 72B Instruct</option>
+          </optgroup>
+          <optgroup label="Mistral">
+            <option value="mistral-large-latest">Mistral Large</option>
+            <option value="mistral-codestral-latest">CodeStral</option>
+            <option value="mistral-ministral-8b-latest">Ministral 8B</option>
+            <option value="mistral-ministral-3b-latest">Ministral 3B</option>
+          </optgroup>
+        </select>
+      </div>            
     </div>
 
     <!-- Main Chat Wrapper -->
@@ -64,7 +119,7 @@
       <div class="input-container">
         <div class="button-row">
             <button id="customBtn1">TLDR</button>
-            <button id="customBtn3" class="toggle-btn-summarize"><img src="assets/summarize.svg" alt="Icon" class="svg-icon"></button>
+            <button id="customBtn3" class="toggle-btn-summarize" title="Toggle summarization"><img src="assets/summarize.svg" alt="Icon" class="svg-icon"></button>
             <button id="customBtn2"><img src="assets/settings.svg" alt="Icon" class="svg-icon"></button>
         </div>
         <div id="fileAttachments" class="file-attachments"></div>
@@ -114,12 +169,12 @@
             <div class="settings-group">
               <select id="modelSelect" name="modelSelect">
                 <optgroup label="OpenAI">
-                  <option value="gpt-4o">gpt-4o</option>
-                  <option value="gpt-4o-mini">gpt-4o-mini</option>
+                  <option value="gpt-4o">GPT-4o</option>
+                  <option value="gpt-4o-mini">GPT-4o Mini</option>
                 </optgroup>
                 <optgroup label="Anthropic">
-                  <option value="claude-3.5-sonnet">claude-3.5-sonnet</option>
-                  <option value="claude-3.7-sonnet">claude-3.7-sonnet</option>
+                  <option value="claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+                  <option value="claude-3.7-sonnet">Claude 3.7 Sonnet</option>
                 </optgroup>
                 <optgroup label="Google">
                   <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
@@ -133,7 +188,8 @@
                 <optgroup label="Mistral">
                   <option value="mistral-large-latest">Mistral Large</option>
                   <option value="mistral-codestral-latest">CodeStral</option>
-                  <option value="mistral-ministral-8b-latest">MiniStral 8B</option>
+                  <option value="mistral-ministral-8b-latest">Ministral 8B</option>
+                  <option value="mistral-ministral-3b-latest">Ministral 3B</option>
                 </optgroup>
               </select>
             </div>

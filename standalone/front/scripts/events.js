@@ -120,6 +120,15 @@ saveSettingsBtn.addEventListener('click', () => {
   sessionSettings.model = modelSelect.value;
   console.log('Session settings saved:', sessions[currentSessionIndex].settings);
   settingsOverlay.classList.remove('active');
+
+  const preset1 = document.getElementById('preset1');
+  const preset2 = document.getElementById('preset2');  
+
+  preset1.value = "gpt-4o-mini";
+  preset2.value = "gpt-4o-mini";
+
+  preset2.classList.remove('active');
+  preset1.classList.remove('active');
 });
 const editTitleBtn = document.getElementById('editTitleBtn');
 editTitleBtn.addEventListener('click', () => {

@@ -20,6 +20,8 @@ export function initSessions() {
       maxTokens: 8096,
       persona: "professional",
       model: "gpt-4o-mini",
+      model_preset1: "gpt-4o-mini",
+      model_preset2: "gpt-4o-mini",
       enableSummarization: false,
     },
   });
@@ -52,6 +54,19 @@ export function renderSessionList() {
       currentCardIndex = 0;
       renderSessionList();
       renderCurrentSession();
+
+      console.log(currentSessionIndex);
+
+      const preset1 = document.getElementById('preset1');
+      const preset2 = document.getElementById('preset2');  
+    
+      preset1.value = sessions[currentSessionIndex].settings.model_preset1;
+      preset2.value = sessions[currentSessionIndex].settings.model_preset2;
+      console.log(preset1.value);
+      console.log(preset2.value);
+    
+      preset2.classList.remove('active');
+      preset1.classList.remove('active');          
     });
     if (index === currentSessionIndex) li.classList.add('active');
     sessionList.appendChild(li);
@@ -212,8 +227,10 @@ document.getElementById('newSessionBtn').addEventListener('click', () => {
           maxTokens: 8096,
           persona: "professional",
           model: "gpt-4o-mini",
+          model_preset1: "gpt-4o-mini",
+          model_preset2: "gpt-4o-mini",
           enableSummarization: false
-      }      
+      }
   };
 
   sessions.push(newSession);
@@ -224,4 +241,13 @@ document.getElementById('newSessionBtn').addEventListener('click', () => {
 
   renderSessionList();
   renderCurrentSession();
+
+  const preset1 = document.getElementById('preset1');
+  const preset2 = document.getElementById('preset2');  
+
+  preset1.value = "gpt-4o-mini";
+  preset2.value = "gpt-4o-mini";
+
+  preset2.classList.remove('active');
+  preset1.classList.remove('active');
 });

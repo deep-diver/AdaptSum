@@ -65,6 +65,7 @@
     display: flex;
     flex-direction: column;
   }
+
   .nav-bar.hidden {
     transform: translateX(-100%);
     width: 0;
@@ -992,4 +993,62 @@
 
 .toggle-btn-summarize.active {
   background-color: #4a90e2 !important;  /* Vivid color when active */
+}
+
+/* Model Presets */
+/* Container for presets */
+#presetContainer {
+  flex-shrink: 0;
+  padding: 10px 24px;
+  border-top: 1px solid #ddd;
+  background-color: #fff;
+}
+
+/* Improved preset select styling */
+#presetContainer {
+  position: absolute;
+  bottom: 20px; /* same as nav-bar padding */
+  left: 20px;
+  right: 20px;
+  background: #fff;
+  padding: 10px;
+  border-top: 1px solid #ddd;
+}
+
+/* Enhanced preset select styling */
+.preset-header {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+
+.preset-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  font-size: 1em;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: #fafafa;
+  background-image: url('data:image/svg+xml;utf8,<svg fill="gray" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+}
+
+.preset-select.active {
+  background-color: #4a90e2;
+  color: #fff;
+  border-color: #4a90e2;
+  box-shadow: 0 0 8px rgba(74, 144, 226, 0.3);
+  outline: none;
+}
+
+#sessionList {
+  overflow-y: auto;
+  padding-bottom: 150px; /* Adjust this value as needed */
 }
