@@ -1,23 +1,22 @@
 import os
 import json
-import asyncio
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi import APIRouter
 
-from openai import AsyncOpenAI
+from mistralai import Mistral 
 
 from .utils import handle_attachments, extract_text_from_pdf
 
 router = APIRouter()
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY")
+client = Mistral(api_key=MISTRAL_API_KEY)
 
-attachments_in_openai = {}
+attachments_in_mistral = {}
 
-@router.post("/openai_stream")
-async def openai_stream(request: Request):
+@router.post("/mistral_stream")
+async def mistral_stream(request: Request):
     try:
         body = await request.json()
     except Exception as e:
@@ -32,18 +31,19 @@ async def openai_stream(request: Request):
     print()
     temperature = body.get("temperature", 0.7)
     max_tokens = body.get("max_tokens", 256)
-    model = body.get("model", "gpt-4o-mini")
+    model = body.get("model", "mistral-small-latest")
+    if "codestral" in model: model = model.replace("mistral-", "")
+    if "ministral" in model: model = model.replace("mistral-", "")
     
-    # Get session ID from the request headers
+    # Get session ID from the request
     session_id = request.headers.get("X-Session-ID")
-    if session_id not in attachments_in_openai: 
-        attachments_in_openai[session_id] = {}
+    if session_id not in attachments_in_mistral: attachments_in_mistral[session_id] = {}
     if not session_id:
         raise HTTPException(status_code=400, detail="Missing 'session_id' in payload")
 
     # Handle file attachments if present
     conversation = await handle_attachments(session_id, conversation)
-    gpt_messages = []
+    mistral_messages = []
     for msg in conversation:
         role = "user" if msg["role"] == "user" else "assistant"
 
@@ -51,55 +51,54 @@ async def openai_stream(request: Request):
         if "attachments" in msg:
             for attachment in msg["attachments"]:
                 if attachment["file_path"].endswith(".pdf"):
-                    if attachment["file_path"] not in attachments_in_openai[session_id]:
+                    if attachment["file_path"] not in attachments_in_mistral[session_id]:    
                         pdf_text = await extract_text_from_pdf(attachment["file_path"])
                         pdf_texts.append([attachment["name"], pdf_text])
-                        attachments_in_openai[session_id][attachment["name"]] = pdf_text
+                        attachments_in_mistral[session_id][attachment["name"]] = pdf_text
                     else:
-                        pdf_texts.append([attachment["name"], attachments_in_openai[session_id][attachment["name"]]])
+                        pdf_texts.append([attachment["name"], attachments_in_mistral[session_id][attachment["name"]]])
 
-        gpt_messages.append({"role": role, "content": msg["content"]})
+        mistral_messages.append({"role": role, "content": msg["content"]})
         for pdf_text in pdf_texts:
-            gpt_messages.append({"role": "user", "content": f"{pdf_text[0]}\n\n{pdf_text[1]}"})
+            mistral_messages.append({"role": "user", "content": f"{pdf_text[0]}\n\n{pdf_text[1]}"})
 
     async def event_generator():
-        line_count = 0
         try:
             print(f"Starting stream for model: {model}, temperature: {temperature}, max_tokens: {max_tokens}")
+            line_count = 0
             
             # Use the SDK to create a streaming completion
-            stream = await client.chat.completions.create(
+            stream = await client.chat.stream_async(
                 model=model,
-                messages=gpt_messages,
+                messages=mistral_messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                stream=True
             )
             
             async for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content is not None:
-                    content = chunk.choices[0].delta.content
+                print(chunk.__dict__)
+                if chunk.data.choices and chunk.data.choices[0].delta.content is not None:
+                    content = chunk.data.choices[0].delta.content
                     line_count += 1
                     if line_count % 10 == 0:
                         print(f"Processed {line_count} stream chunks")
                     
+                    # Format the response in the same way as OpenAI
                     response_json = json.dumps({
                         "choices": [{"delta": {"content": content}}]
                     })
                     yield f"data: {response_json}\n\n"
             
+            # Send the [DONE] marker
             print("Stream completed successfully")
             yield "data: [DONE]\n\n"
                 
-        except asyncio.CancelledError:
-            print("Streaming aborted by client")
-            # You can choose to do cleanup here if needed.
-            raise  # Re-raise to allow FastAPI to handle the cancellation properly.
         except Exception as e:
             print(f"Error during streaming: {str(e)}")
             yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
         finally:
-            print(f"Stream ended after processing {line_count} chunks")
+            print(f"Stream ended after processing {line_count if 'line_count' in locals() else 0} chunks")
 
     print("Returning StreamingResponse to client")
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
